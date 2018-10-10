@@ -33,7 +33,7 @@ def get_confusion_metrics(confusion_matrix):
         out4 : numpy.ndarray
             f1 [N] harmonic mean of precision and recall
         out5 : numpy.ndarray
-            mean f1 [N] harmonic mean of precision and recall
+            mean of all f1 scores
 
         Notes
         -----
