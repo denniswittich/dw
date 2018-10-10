@@ -1,0 +1,10 @@
+#Ignore thumbnails created by Windows
+Thumbs.db
+
+*.bat
+dw.egg-info
+build
+dist
+dw/__pycache__
+.idea
+
