@@ -6,6 +6,7 @@ Last edited on Oct 10 2018
 
 from numba import jit
 import numpy as np
+import matplotlib.pyplot as plt
 
 @jit(nopython=True)
 def update_confusion_matrix(confusions, predicted_labels, reference_labels):
@@ -53,6 +54,99 @@ def get_confusion_metrics(confusion_matrix):
     mean_f1 = np.nanmean(f1)
     oa = np.trace(confusion_matrix) / np.sum(confusion_matrix)
     return pctgs, precisions, recall, f1, mean_f1, oa
+
+
+def plot_table_chart(data, rows=None, columns=None, y_label='', title='', cell_rule='{}', cmap=plt.cm.Accent):
+    n_rows, n_cols = data.shape[:2]
+
+    if not columns:
+        columns = [str(i) for i in range(n_cols)]
+    if not rows:
+        rows = [str(i) for i in range(n_rows)]
+
+    # Get some pastel shades for the colors
+    colors = cmap(np.linspace(0, 0.5, len(rows)))
+
+    cell_text = []
+    for row in range(n_rows):
+        plt.plot(data[row], color=colors[row])
+        cell_text.append([cell_rule.format(v) for v in data[row]])
+    # Reverse colors and text labels to display the last value at the top.
+    colors = colors[::-1]
+    cell_text.reverse()
+
+    tab = plt.table(cellText=cell_text,
+                    rowLabels=rows,
+                    rowColours=colors,
+                    colLabels=columns,
+                    loc='bottom')
+    tab.scale(1, 2)
+
+    # Adjust layout to make room for the table:
+    plt.subplots_adjust(left=0.2, bottom=0.2)
+
+    plt.ylabel(y_label)
+    plt.xticks([])
+    plt.title(title)
+    plt.show()
+
+
+# =====================================================================
+
+def print_stats(X, y, classes, features):
+    Nfeatures = X.shape[0]
+    print('Set contains {} features'.format(Nfeatures))
+    print('\nClass    |   Num   |   Pct   |')
+    for i, class_ in enumerate(classes):
+        num = np.sum(y == i)
+        pct = num * 100 / Nfeatures
+        print('{:<9}|{:^9.0f}|{:^9.2f}|'.format(class_, num, pct))
+    print('\nFeature  |   Min   |   Max   |   Mean  |')
+    for i, feature in enumerate(features):
+        print('{:<9}|{:^9.2f}|{:^9.2f}|{:^9.2f}|'.format(
+            feature, np.min(X[:, i]), np.max(X[:, i]), np.mean(X[:, i])))
+
+
+@jit(nopython=True)
+def update_confusion_matrix(confusions, predicted_labels, reference_labels):
+    reshaped_pr = np.ravel(predicted_labels)
+    reshaped_gt = np.ravel(reference_labels)
+    for predicted, actual in zip(reshaped_pr, reshaped_gt):
+        confusions[predicted, actual] += 1
+
+def plot_confusions(confusions):
+    num = confusions.shape[0]
+    print('\nConfusion Matrix:')
+    plt.figure()
+    plt.xlabel('Actual')
+    plt.ylabel('Predicted')
+    plt.grid(False)
+    plt.xticks(np.arange(num))
+    plt.yticks(np.arange(num))
+    plt.imshow(confusions, cmap=plt.cm.jet, interpolation='nearest');
+    for i, cas in enumerate(confusions):
+        for j, count in enumerate(cas):
+            if count > 0:
+                xoff = .07 * len(str(count))
+                plt.text(j - xoff, i + .2, int(count), fontsize=9, color='white')
+
+
+def print_pct_precision_recall_f1(confusions):
+    pctgs, precisions, recall, f1, mean_f1, oa = get_pctg_precision_recall_f1_meanf1(confusions)
+
+    print('\nclass | pct of data | precision |   recall  |    f1',
+          '\n-----------------------------------------------------')
+
+    for i in range(len(pctgs)):
+        pct = '{:.3%}'.format(pctgs[i]).rjust(9)
+        p = '{:.3%}'.format(precisions[i]).rjust(7)
+        r = '{:.3%}'.format(recall[i]).rjust(7)
+        f = '{:.3%}'.format(f1[i]).rjust(7)
+        print('   {:2d} |  {}  |  {}  |  {}  | {}\n'.format(i, pct, p, r, f))
+
+    print('mean f1-score: {:.3%}'.format(mean_f1))
+    print('Overall accuracy: {:.3%}'.format(oa))
+
 
 @jit(nopython=True)
 def smooth1d(a, n):

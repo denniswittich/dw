@@ -210,9 +210,9 @@ def median_filter(I, n):
 
 
 @jit(nopython=True)
-def sub_pixel(image, x, y, allow_oob=False):
-    assert image.ndim == 3, 'Image has to be a 3D-array!'
-    h, w = image.shape[:2]
+def sub_pixel(I, x, y, allow_oob=False):
+    assert I.ndim == 3, 'Image has to be a 3D-array!'
+    h, w = I.shape[:2]
 
     if not allow_oob:
         assert x >= 0, 'x must not be negative'
@@ -241,18 +241,18 @@ def sub_pixel(image, x, y, allow_oob=False):
     s_ = 1 - s
     t_ = 1 - t
 
-    v00 = image[x_low, y_low, :]
-    v10 = image[x_high, y_low, :]
-    v01 = image[x_low, y_high, :]
-    v11 = image[x_high, y_high, :]
+    v00 = I[x_low, y_low, :]
+    v10 = I[x_high, y_low, :]
+    v01 = I[x_low, y_high, :]
+    v11 = I[x_high, y_high, :]
 
     return (s_ * t_ * v00 + s * t_ * v10 + s_ * t * v01 + s * t * v11).astype(np.float32)
 
 
 @jit(nopython=True)
-def rescale(img, factor, interpolate):
-    h, w, d = img.shape
-    ext_image = extend_same(img, 1)
+def rescale(I, factor, interpolate):
+    h, w, d = I.shape
+    ext_image = extend_same(I, 1)
 
     h_ = int(h * factor)
     w_ = int(w * factor)
@@ -274,8 +274,8 @@ def rescale(img, factor, interpolate):
 
 
 @jit(nopython=True)
-def extract_patch(img, rad, cx, cy, patchsize, interpolate, flipx, flipy):
-    h, w, d = img.shape
+def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
+    h, w, d = I.shape
     result = np.zeros((patchsize, patchsize, d), dtype=np.float32)
 
     sr = np.sin(rad)
@@ -297,10 +297,187 @@ def extract_patch(img, rad, cx, cy, patchsize, interpolate, flipx, flipy):
             y = cy + dy
 
             if interpolate:
-                result[x_, y_, :] = sub_pixel(img, x, y)
+                result[x_, y_, :] = sub_pixel(I, x, y)
             else:
                 xr = min(max(int(np.round(x)), 0), h - 1)
                 yr = min(max(int(np.round(y)), 0), w - 1)
-                result[x_, y_, :] = img[xr, yr]
+                result[x_, y_, :] = I[xr, yr]
 
     return result
+
+
+## colorspaces
+# Value-ranges:
+# RGB: 0.0 - 1.0 (float)
+# H:   0.0 - 2pi (float)
+#
+# TODO continue & correct this!
+
+def RGB2HSI(RGB):
+    RGB_normalized = RGB / 255.0  # Normalize values to 0.0 - 1.0 (float64)
+    R = RGB_normalized[:, :, 0]  # Split channels
+    G = RGB_normalized[:, :, 1]
+    B = RGB_normalized[:, :, 2]
+
+    I = np.mean(RGB, axis=2)  # Compute intensity
+
+    M = np.max(RGB_normalized, axis=2)  # Compute max, min & chroma
+    m = np.min(RGB_normalized, axis=2)
+    C = M - m
+
+    hue_defined = C > 0  # Check if hue can be computed
+
+    r_is_max = np.logical_and(R == M, hue_defined)  # Computation of hue depends on max
+    g_is_max = np.logical_and(G == M, hue_defined)
+    b_is_max = np.logical_and(B == M, hue_defined)
+
+    H = np.zeros_like(m)  # Compute hue
+    H_r = ((G[r_is_max] - B[r_is_max]) / C[r_is_max]) % 6
+    H_g = ((B[g_is_max] - R[g_is_max]) / C[g_is_max]) + 2
+    H_b = ((R[b_is_max] - G[b_is_max]) / C[b_is_max]) + 4
+
+    H[r_is_max] = H_r
+    H[g_is_max] = H_g
+    H[b_is_max] = H_b
+    H *= 60
+
+    sat_defined = I > 0
+    I /= 255.0
+
+    S = np.zeros_like(m)  # Compute saturation
+    O = np.ones_like(m)
+    S[sat_defined] = O[sat_defined] - (m[sat_defined] / I[sat_defined])
+
+    return np.dstack((H, S, I))  # H[0-360] , S[0-1], I[0-1]
+
+
+def HSI2RGB(HSI):
+    H = HSI[:, :, 0]  # Split attributes
+    S = HSI[:, :, 1]
+    I = HSI[:, :, 2]
+
+    H_ = H / 60.0  # Normalize hue
+    Z = 1 - np.abs(H_ % 2.0 - 1.0)
+
+    C = 3.0 * I * S / (1.0 + Z)  # Compute chroma
+
+    X = C * Z
+
+    H_0_1 = np.logical_and(0 <= H_, H_ <= 1)  # Store color orderings
+    H_1_2 = np.logical_and(1 < H_, H_ <= 2)
+    H_2_3 = np.logical_and(2 < H_, H_ <= 3)
+    H_3_4 = np.logical_and(3 < H_, H_ <= 4)
+    H_4_5 = np.logical_and(4 < H_, H_ <= 5)
+    H_5_6 = np.logical_and(5 < H_, H_ <= 6)
+
+    R1G1B1 = np.zeros_like(HSI)  # Compute relative color values
+    Z = np.zeros_like(H)
+
+    R1G1B1[H_0_1] = np.dstack((C[H_0_1], X[H_0_1], Z[H_0_1]))
+    R1G1B1[H_1_2] = np.dstack((X[H_1_2], C[H_1_2], Z[H_1_2]))
+    R1G1B1[H_2_3] = np.dstack((Z[H_2_3], C[H_2_3], X[H_2_3]))
+    R1G1B1[H_3_4] = np.dstack((Z[H_3_4], X[H_3_4], C[H_3_4]))
+    R1G1B1[H_4_5] = np.dstack((X[H_4_5], Z[H_4_5], C[H_4_5]))
+    R1G1B1[H_5_6] = np.dstack((C[H_5_6], Z[H_5_6], X[H_5_6]))
+
+    m = I * (1.0 - S)
+    RGB = R1G1B1 + np.dstack((m, m, m))  # Adding the value correction
+
+    return (RGB * 255).astype(np.ubyte)
+
+
+def RGB2LAB(RGB):
+    HSI = RGB2HSI(RGB)
+
+    H = HSI[:, :, 0] / 180.0 * np.pi  # Split attributes
+    S = HSI[:, :, 1]
+    I = HSI[:, :, 2]
+
+    L = I
+    A = np.cos(H) * S
+    B = np.sin(H) * S
+
+    return np.dstack((L, A, B))
+
+
+def LAB2RGB(LAB):
+    L = LAB[:, :, 0]  # Split attributes
+    A = LAB[:, :, 1]
+    B = LAB[:, :, 2]
+
+    I = L
+    H = np.arctan2(B, A) * 180.0 / np.pi
+    H[H < 0] += 360
+    S = np.sqrt(A ** 2 + B ** 2)
+    S = np.minimum(np.sqrt(A ** 2 + B ** 2), 1)  # this should be C, not S
+
+    return HSI2RGB(np.dstack((H, S, I)))
+
+
+def RGB2HSV(RGB):
+    RGB_normalized = RGB / 255.0                           # Normalize values to 0.0 - 1.0 (float64)
+    R = RGB_normalized[:, :, 0]                            # Split channels
+    G = RGB_normalized[:, :, 1]
+    B = RGB_normalized[:, :, 2]
+
+    v_max = np.max(RGB_normalized, axis=2)                 # Compute max, min & chroma
+    v_min = np.min(RGB_normalized, axis=2)
+    C = v_max - v_min
+
+    hue_defined = C > 0                                    # Check if hue can be computed
+
+    r_is_max = np.logical_and(R == v_max, hue_defined)     # Computation of hue depends on max
+    g_is_max = np.logical_and(G == v_max, hue_defined)
+    b_is_max = np.logical_and(B == v_max, hue_defined)
+
+    H = np.zeros_like(v_max)                               # Compute hue
+    H_r = ((G[r_is_max] - B[r_is_max]) / C[r_is_max]) % 6
+    H_g = ((B[g_is_max] - R[g_is_max]) / C[g_is_max]) + 2
+    H_b = ((R[b_is_max] - G[b_is_max]) / C[b_is_max]) + 4
+
+    H[r_is_max] = H_r
+    H[g_is_max] = H_g
+    H[b_is_max] = H_b
+    H *= 60
+
+    V = v_max                                              # Compute value
+
+    sat_defined = V > 0
+
+    S = np.zeros_like(v_max)                               # Compute saturation
+    S[sat_defined] = C[sat_defined] / V[sat_defined]
+
+    return np.dstack((H, S, V))
+
+
+def HSV2RGB(HSV):
+    H = HSV[:, :, 0]                                           # Split attributes
+    S = HSV[:, :, 1]
+    V = HSV[:, :, 2]
+
+    C = V * S                                                  # Compute chroma
+
+    H_ = H / 60.0                                              # Normalize hue
+    X  = C * (1 - np.abs(H_ % 2 - 1))                          # Compute value of 2nd largest color
+
+    H_0_1 = np.logical_and(0 <= H_, H_<= 1)                    # Store color orderings
+    H_1_2 = np.logical_and(1 <  H_, H_<= 2)
+    H_2_3 = np.logical_and(2 <  H_, H_<= 3)
+    H_3_4 = np.logical_and(3 <  H_, H_<= 4)
+    H_4_5 = np.logical_and(4 <  H_, H_<= 5)
+    H_5_6 = np.logical_and(5 <  H_, H_<= 6)
+
+    R1G1B1 = np.zeros_like(HSV)                                # Compute relative color values
+    Z = np.zeros_like(H)
+
+    R1G1B1[H_0_1] = np.dstack((C[H_0_1], X[H_0_1], Z[H_0_1]))
+    R1G1B1[H_1_2] = np.dstack((X[H_1_2], C[H_1_2], Z[H_1_2]))
+    R1G1B1[H_2_3] = np.dstack((Z[H_2_3], C[H_2_3], X[H_2_3]))
+    R1G1B1[H_3_4] = np.dstack((Z[H_3_4], X[H_3_4], C[H_3_4]))
+    R1G1B1[H_4_5] = np.dstack((X[H_4_5], Z[H_4_5], C[H_4_5]))
+    R1G1B1[H_5_6] = np.dstack((C[H_5_6], Z[H_5_6], X[H_5_6]))
+
+    m = V - C
+    RGB = R1G1B1 + np.dstack((m, m, m))                        # Adding the value correction
+
+    return RGB
