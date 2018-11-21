@@ -9,6 +9,9 @@ def read(path):
     I = imageio.imread(path).astype(np.float)
     if path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
         I /= 255.0
+        v_min = np.min(I)
+        v_max = np.max(I)
+        assert v_min >= 0.0 and v_max <= 1.0, "out of range while normalization ({},{}) {}".format(v_min, v_max, path)
     return np.atleast_3d(I)
 
 
@@ -16,8 +19,8 @@ def write(path, I):
     if path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
         v_min = np.min(I)
         v_max = np.max(I)
-        assert v_min >= 0.0 and v_max <= 1.0, "out of range to write as ubyte ({},{})".format(v_min, v_max)
-        I = (I*255.0).astype(np.ubyte)
+        assert v_min >= 0.0 and v_max <= 1.0, "out of range to write as ubyte ({},{}) {}".format(v_min, v_max, path)
+        I = (I * 255.0).astype(np.ubyte)
     imageio.imwrite(path, I)
 
 
@@ -282,7 +285,7 @@ def rescale(I, factor, interpolate=True):
     h, w, d = I.shape
     ext_image = extend_same(I, 1)
     if factor < 1.0 and interpolate:
-        ext_image = gaussian_blur(ext_image, factor/2)
+        ext_image = gaussian_blur(ext_image, 0.5/factor)
 
     h_ = int(h * factor)
     w_ = int(w * factor)
