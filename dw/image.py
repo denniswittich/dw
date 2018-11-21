@@ -277,12 +277,12 @@ def sub_pixel(I, x, y, allow_oob=False):
 @jit(nopython=True)
 def rescale(I, factor, interpolate=True):
     # new (height, width) will be factor * old (height,width)
-    # factor > 1: upsample
-    # factor < 1: downsample (if interpolate: gaussian blur + )
+    # factor > 1: upsample (if interpolate: bilinear)
+    # factor < 1: downsample (if interpolate: gaussian blur + bilinear)
     h, w, d = I.shape
     ext_image = extend_same(I, 1)
     if factor < 1.0 and interpolate:
-        ext_image = gaussian_blur(ext_image, factor)
+        ext_image = gaussian_blur(ext_image, factor/2)
 
     h_ = int(h * factor)
     w_ = int(w * factor)
