@@ -6,7 +6,7 @@ import imageio
 # ===== IO
 
 def read(path):
-    I = imageio.imread(path).astype(np.float)
+    I = imageio.imread(path).astype(np.float32)
     if path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
         I /= 255.0
         v_min = np.min(I)
@@ -285,7 +285,7 @@ def rescale(I, factor, interpolate=True):
     h, w, d = I.shape
     ext_image = extend_same(I, 1)
     if factor < 1.0 and interpolate:
-        ext_image = gaussian_blur(ext_image, 0.5/factor)
+        ext_image = gaussian_blur(ext_image, 0.5 / factor)
 
     h_ = int(h * factor)
     w_ = int(w * factor)
@@ -337,3 +337,10 @@ def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
                 result[x_, y_, :] = I[xr, yr]
 
     return result
+
+
+def mmmsd(I):
+    try:
+        print('min: {}, max {}, mean {}, shape {}, dtype {}'.format(np.min(I), np.max(I), np.mean(I), I.shape, I.dtype))
+    except:
+        print('I is not an array')
