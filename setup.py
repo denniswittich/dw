@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="dw",
-    version="0.0.1",
+    version="0.0.2",
     author="Dennis Wittich",
     author_email="denniswittich@hotmail.de",
     description="Mixed tools",
