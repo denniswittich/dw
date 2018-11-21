@@ -1,34 +1,55 @@
 import numpy as np
 from numba import jit
+import imageio
 
+
+# ===== IO
+
+def read(path):
+    I = imageio.imread(path).astype(np.float)
+    if path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
+        I /= 255.0
+    return np.atleast_3d(I)
+
+
+def write(path, I):
+    if path.split('.')[-1].lower() in ['png', 'jpg', 'jpeg']:
+        v_min = np.min(I)
+        v_max = np.max(I)
+        assert v_min >= 0.0 and v_max <= 1.0, "out of range to write as ubyte ({},{})".format(v_min, v_max)
+        I = (I*255.0).astype(np.ubyte)
+    imageio.imwrite(path, I)
+
+
+# ===== PADDING
 
 @jit(nopython=True)
-def extend_same(image, border_width):
-    h, w, d = image.shape
+def extend_same(I, border_width):
+    h, w, d = I.shape
     s = border_width
 
     new_shape = (h + 2 * s, w + 2 * s, d)
     out_image = np.zeros(new_shape, dtype=np.float32)
 
-    out_image[s:h + s, s:w + s, :] = image
+    out_image[s:h + s, s:w + s, :] = I
 
-    out_image[:s, :s, :] = np.ones((s, s, d)) * image[0, 0, :]
-    out_image[:s, s + w:, :] = np.ones((s, s, d)) * image[0, -1, :]
-    out_image[s + h:, :s, :] = np.ones((s, s, d)) * image[-1, 0, :]
-    out_image[s + h:, s + w:, :] = np.ones((s, s, d)) * image[-1, -1, :]
+    out_image[:s, :s, :] = np.ones((s, s, d)) * I[0, 0, :]
+    out_image[:s, s + w:, :] = np.ones((s, s, d)) * I[0, -1, :]
+    out_image[s + h:, :s, :] = np.ones((s, s, d)) * I[-1, 0, :]
+    out_image[s + h:, s + w:, :] = np.ones((s, s, d)) * I[-1, -1, :]
 
     for x in range(h):
         target_row = s + x
-        value_left = image[x, 0, :]
-        value_right = image[x, -1, :]
+        value_left = I[x, 0, :]
+        value_right = I[x, -1, :]
         for y in range(s):
             out_image[target_row, y, :] = value_left
             out_image[target_row, y - s, :] = value_right
 
     for y in range(w):
         target_column = s + y
-        value_up = image[0, y, :]
-        value_low = image[-1, y, :]
+        value_up = I[0, y, :]
+        value_low = I[-1, y, :]
         for x in range(s):
             out_image[x, target_column, :] = value_up
             out_image[x - s, target_column, :] = value_low
@@ -37,24 +58,26 @@ def extend_same(image, border_width):
 
 
 @jit(nopython=True)
-def extend_mean(image, border_width):
-    h, w, d = image.shape
+def extend_mean(I, border_width):
+    h, w, d = I.shape
     s = border_width
 
-    mean = np.mean(image)
+    mean = np.mean(I)
 
     new_shape = (h + 2 * s, w + 2 * s, d)
     out_image = np.ones(new_shape, dtype=np.float32) * mean
 
-    out_image[s:h + s, s:w + s, :] = image
+    out_image[s:h + s, s:w + s, :] = I
     return out_image
 
 
+# ===== FILTERING
+
 @jit(nopython=True)
-def __sw_convolution(img, filter):
+def __sw_convolution(I, filter):
     fs = filter.shape[0]
     hfs = int(fs / 2)
-    h, w, d = img.shape
+    h, w, d = I.shape
 
     out_image = np.zeros((h - 2 * hfs, w - 2 * hfs, d), dtype=np.float32)
 
@@ -64,7 +87,7 @@ def __sw_convolution(img, filter):
                 v = 0.0
                 for x_ in range(fs):
                     for y_ in range(fs):
-                        v += img[x + x_, y + y_, z] * filter[x_, y_]
+                        v += I[x + x_, y + y_, z] * filter[x_, y_]
 
                 out_image[x, y, z] = v
 
@@ -72,11 +95,11 @@ def __sw_convolution(img, filter):
 
 
 @jit(nopython=True)
-def __fast_sw_convolution_sv(img, u0, v0):
+def __fast_sw_convolution_sv(I, u0, v0):
     fs = u0.shape[0]
     hfs = int(fs / 2)
 
-    h, w, d = img.shape
+    h, w, d = I.shape
 
     mid_image = np.zeros((h - 2 * hfs, w - 2 * hfs, d), dtype=np.float32)
     for x in range(0, h - 2 * hfs):
@@ -84,7 +107,7 @@ def __fast_sw_convolution_sv(img, u0, v0):
             for z in range(d):
                 v = 0.0
                 for x_ in range(fs):
-                    v += img[x + x_, y + hfs, z] * u0[x_]
+                    v += I[x + x_, y + hfs, z] * u0[x_]
                 mid_image[x, y, z] = v
 
     mid_image = extend_same(mid_image, hfs)
@@ -209,6 +232,8 @@ def median_filter(I, n):
     return q
 
 
+# ===== INTERPOLATION
+
 @jit(nopython=True)
 def sub_pixel(I, x, y, allow_oob=False):
     assert I.ndim == 3, 'Image has to be a 3D-array!'
@@ -250,7 +275,7 @@ def sub_pixel(I, x, y, allow_oob=False):
 
 
 @jit(nopython=True)
-def rescale(I, factor, interpolate):
+def rescale(I, factor, interpolate=True):
     h, w, d = I.shape
     ext_image = extend_same(I, 1)
 
@@ -264,14 +289,14 @@ def rescale(I, factor, interpolate):
         for y_ in range(w_):
             x = x_ / factor
             y = y_ / factor
-
             if interpolate:
                 result[x_, y_, :] = sub_pixel(ext_image, 1 + x, 1 + y)
             else:
                 result[x_, y_, :] = ext_image[1 + int(np.round(x)), 1 + int(np.round(y))]
-
     return result
 
+
+# ===== OTHER
 
 @jit(nopython=True)
 def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
@@ -304,180 +329,3 @@ def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
                 result[x_, y_, :] = I[xr, yr]
 
     return result
-
-
-## colorspaces
-# Value-ranges:
-# RGB: 0.0 - 1.0 (float)
-# H:   0.0 - 2pi (float)
-#
-# TODO continue & correct this!
-
-def RGB2HSI(RGB):
-    RGB_normalized = RGB / 255.0  # Normalize values to 0.0 - 1.0 (float64)
-    R = RGB_normalized[:, :, 0]  # Split channels
-    G = RGB_normalized[:, :, 1]
-    B = RGB_normalized[:, :, 2]
-
-    I = np.mean(RGB, axis=2)  # Compute intensity
-
-    M = np.max(RGB_normalized, axis=2)  # Compute max, min & chroma
-    m = np.min(RGB_normalized, axis=2)
-    C = M - m
-
-    hue_defined = C > 0  # Check if hue can be computed
-
-    r_is_max = np.logical_and(R == M, hue_defined)  # Computation of hue depends on max
-    g_is_max = np.logical_and(G == M, hue_defined)
-    b_is_max = np.logical_and(B == M, hue_defined)
-
-    H = np.zeros_like(m)  # Compute hue
-    H_r = ((G[r_is_max] - B[r_is_max]) / C[r_is_max]) % 6
-    H_g = ((B[g_is_max] - R[g_is_max]) / C[g_is_max]) + 2
-    H_b = ((R[b_is_max] - G[b_is_max]) / C[b_is_max]) + 4
-
-    H[r_is_max] = H_r
-    H[g_is_max] = H_g
-    H[b_is_max] = H_b
-    H *= 60
-
-    sat_defined = I > 0
-    I /= 255.0
-
-    S = np.zeros_like(m)  # Compute saturation
-    O = np.ones_like(m)
-    S[sat_defined] = O[sat_defined] - (m[sat_defined] / I[sat_defined])
-
-    return np.dstack((H, S, I))  # H[0-360] , S[0-1], I[0-1]
-
-
-def HSI2RGB(HSI):
-    H = HSI[:, :, 0]  # Split attributes
-    S = HSI[:, :, 1]
-    I = HSI[:, :, 2]
-
-    H_ = H / 60.0  # Normalize hue
-    Z = 1 - np.abs(H_ % 2.0 - 1.0)
-
-    C = 3.0 * I * S / (1.0 + Z)  # Compute chroma
-
-    X = C * Z
-
-    H_0_1 = np.logical_and(0 <= H_, H_ <= 1)  # Store color orderings
-    H_1_2 = np.logical_and(1 < H_, H_ <= 2)
-    H_2_3 = np.logical_and(2 < H_, H_ <= 3)
-    H_3_4 = np.logical_and(3 < H_, H_ <= 4)
-    H_4_5 = np.logical_and(4 < H_, H_ <= 5)
-    H_5_6 = np.logical_and(5 < H_, H_ <= 6)
-
-    R1G1B1 = np.zeros_like(HSI)  # Compute relative color values
-    Z = np.zeros_like(H)
-
-    R1G1B1[H_0_1] = np.dstack((C[H_0_1], X[H_0_1], Z[H_0_1]))
-    R1G1B1[H_1_2] = np.dstack((X[H_1_2], C[H_1_2], Z[H_1_2]))
-    R1G1B1[H_2_3] = np.dstack((Z[H_2_3], C[H_2_3], X[H_2_3]))
-    R1G1B1[H_3_4] = np.dstack((Z[H_3_4], X[H_3_4], C[H_3_4]))
-    R1G1B1[H_4_5] = np.dstack((X[H_4_5], Z[H_4_5], C[H_4_5]))
-    R1G1B1[H_5_6] = np.dstack((C[H_5_6], Z[H_5_6], X[H_5_6]))
-
-    m = I * (1.0 - S)
-    RGB = R1G1B1 + np.dstack((m, m, m))  # Adding the value correction
-
-    return (RGB * 255).astype(np.ubyte)
-
-
-def RGB2LAB(RGB):
-    HSI = RGB2HSI(RGB)
-
-    H = HSI[:, :, 0] / 180.0 * np.pi  # Split attributes
-    S = HSI[:, :, 1]
-    I = HSI[:, :, 2]
-
-    L = I
-    A = np.cos(H) * S
-    B = np.sin(H) * S
-
-    return np.dstack((L, A, B))
-
-
-def LAB2RGB(LAB):
-    L = LAB[:, :, 0]  # Split attributes
-    A = LAB[:, :, 1]
-    B = LAB[:, :, 2]
-
-    I = L
-    H = np.arctan2(B, A) * 180.0 / np.pi
-    H[H < 0] += 360
-    S = np.sqrt(A ** 2 + B ** 2)
-    S = np.minimum(np.sqrt(A ** 2 + B ** 2), 1)  # this should be C, not S
-
-    return HSI2RGB(np.dstack((H, S, I)))
-
-
-def RGB2HSV(RGB):
-    RGB_normalized = RGB / 255.0                           # Normalize values to 0.0 - 1.0 (float64)
-    R = RGB_normalized[:, :, 0]                            # Split channels
-    G = RGB_normalized[:, :, 1]
-    B = RGB_normalized[:, :, 2]
-
-    v_max = np.max(RGB_normalized, axis=2)                 # Compute max, min & chroma
-    v_min = np.min(RGB_normalized, axis=2)
-    C = v_max - v_min
-
-    hue_defined = C > 0                                    # Check if hue can be computed
-
-    r_is_max = np.logical_and(R == v_max, hue_defined)     # Computation of hue depends on max
-    g_is_max = np.logical_and(G == v_max, hue_defined)
-    b_is_max = np.logical_and(B == v_max, hue_defined)
-
-    H = np.zeros_like(v_max)                               # Compute hue
-    H_r = ((G[r_is_max] - B[r_is_max]) / C[r_is_max]) % 6
-    H_g = ((B[g_is_max] - R[g_is_max]) / C[g_is_max]) + 2
-    H_b = ((R[b_is_max] - G[b_is_max]) / C[b_is_max]) + 4
-
-    H[r_is_max] = H_r
-    H[g_is_max] = H_g
-    H[b_is_max] = H_b
-    H *= 60
-
-    V = v_max                                              # Compute value
-
-    sat_defined = V > 0
-
-    S = np.zeros_like(v_max)                               # Compute saturation
-    S[sat_defined] = C[sat_defined] / V[sat_defined]
-
-    return np.dstack((H, S, V))
-
-
-def HSV2RGB(HSV):
-    H = HSV[:, :, 0]                                           # Split attributes
-    S = HSV[:, :, 1]
-    V = HSV[:, :, 2]
-
-    C = V * S                                                  # Compute chroma
-
-    H_ = H / 60.0                                              # Normalize hue
-    X  = C * (1 - np.abs(H_ % 2 - 1))                          # Compute value of 2nd largest color
-
-    H_0_1 = np.logical_and(0 <= H_, H_<= 1)                    # Store color orderings
-    H_1_2 = np.logical_and(1 <  H_, H_<= 2)
-    H_2_3 = np.logical_and(2 <  H_, H_<= 3)
-    H_3_4 = np.logical_and(3 <  H_, H_<= 4)
-    H_4_5 = np.logical_and(4 <  H_, H_<= 5)
-    H_5_6 = np.logical_and(5 <  H_, H_<= 6)
-
-    R1G1B1 = np.zeros_like(HSV)                                # Compute relative color values
-    Z = np.zeros_like(H)
-
-    R1G1B1[H_0_1] = np.dstack((C[H_0_1], X[H_0_1], Z[H_0_1]))
-    R1G1B1[H_1_2] = np.dstack((X[H_1_2], C[H_1_2], Z[H_1_2]))
-    R1G1B1[H_2_3] = np.dstack((Z[H_2_3], C[H_2_3], X[H_2_3]))
-    R1G1B1[H_3_4] = np.dstack((Z[H_3_4], X[H_3_4], C[H_3_4]))
-    R1G1B1[H_4_5] = np.dstack((X[H_4_5], Z[H_4_5], C[H_4_5]))
-    R1G1B1[H_5_6] = np.dstack((C[H_5_6], Z[H_5_6], X[H_5_6]))
-
-    m = V - C
-    RGB = R1G1B1 + np.dstack((m, m, m))                        # Adding the value correction
-
-    return RGB
