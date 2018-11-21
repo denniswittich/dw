@@ -6,3 +6,8 @@ To install locally run
 
  - python ./setup.py sdist bdist_wheel
  - pip install --upgrade --force-reinstall ./dist/dw-0.0.1-py3-none-any.whl
+ 
+ 
+To install from git run
+
+ - pip install --upgrade git+https://github.com/denniswittich/dw.git
