@@ -38,12 +38,12 @@ def crawl_do(root, condition, action, skip=None, verbose=False):
         if skip and skip(joined):  # -------------------------------------- skip file/folder
             if verbose: print('skipping file', joined)
             continue
-        elif os.path.isdir(joined):  # ------------------------------------ step into folder
-            if verbose: print('stepping into', joined)
-            crawl_do(joined, condition, action, skip, verbose)
         elif condition(joined):  # ---------------------------------------- perform action
             if verbose: print('performing action on file', joined)
             action(joined)
+        elif os.path.isdir(joined):  # ------------------------------------ step into folder
+            if verbose: print('stepping into', joined)
+            crawl_do(joined, condition, action, skip, verbose)
 
 
 def ensure_folder_exists(path):
