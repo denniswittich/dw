@@ -28,6 +28,10 @@ def write(path, I):
 
 @jit(nopython=True)
 def extend_same(I, border_width):
+    # pads by repeating the border values
+    #
+    #
+
     h, w, d = I.shape
     s = border_width
 
@@ -344,3 +348,111 @@ def mmmsd(I):
         print('min: {}, max {}, mean {}, shape {}, dtype {}'.format(np.min(I), np.max(I), np.mean(I), I.shape, I.dtype))
     except:
         print('I is not an array')
+
+
+@jit(nopython=True)
+def get_optimal_rotated_shape(h, w, rad):
+    rad = abs(rad)
+    while rad > 2 * np.pi:
+        rad -= 2 * np.pi
+    if rad > np.pi:
+        rad = rad - 2 * np.pi
+        rad = abs(rad)
+
+    swap_extends = False
+    if rad > np.pi / 2:
+        tmp = w
+        w = h
+        h = tmp
+        swap_extends = True
+        rad -= np.pi / 2
+
+    sr = np.sin(rad)
+    cr = np.cos(rad)
+
+    a = h / w
+    if a < 1:
+        a = 1 / a
+    best_area = 0.0
+    best_height = 0.0
+    best_width = 0.0
+    for aspect in np.linspace(1, 2 * a, 100):
+        for i in range(2):
+            if i:
+                aspect = 1 / aspect
+            # print('\naspect:', aspect)
+            h_ = w * aspect
+            mbr_w = h_ * sr + w * cr
+            mbr_h = h_ * cr + w * sr
+            s = min(w / mbr_w, h / mbr_h)
+            # print('scale', s)
+            h_ = h_ * s
+            w_ = w * s
+            area = h_ * w_
+            # print('h,w,a', h_, w_, area)
+            if area > best_area:
+                best_area = area
+                best_height = h_
+                best_width = w_
+
+    return best_height, best_width
+
+
+@jit(float32[:, :, :](float32[:, :, :], float32, boolean), nopython=True, cache=True)
+def get_zoomed_central_rotation(img, rad, interpolate):
+    h, w, d = img.shape
+    h_, w_ = get_optimal_rotated_shape(h, w, rad)
+    return extract_patch(img, rad, h / 2, w / 2, h_, w_, interpolate, False, False)
+
+
+
+def draw_mbrs(I, mbrs):
+    """Draws minimum bounding rectangles to an image.
+
+        Parameters
+        ----------
+        I : ndarray of float64
+            3D array representing the image
+
+        mbrs : list of tuples of float
+            each tuple in list holds the parameters of a minimum bounding rectangle
+
+        Returns
+        -------
+        out : ndarray of float64
+            3D array, image with rectangles
+
+        Notes
+        -----
+        Definitions
+        MBRs : list of tuples of floats : (angle, length, with, center x, center y)
+    """
+    h, w, _ = I.shape
+    J = np.copy(I)
+    for phi, L, W, cx, cy in mbrs:
+        cp = np.cos(phi)
+        sp = np.sin(phi)
+        for a in (-L / 2, L / 2):
+            for b in np.linspace(-W / 2, W / 2, int(W)):
+                x = int(a * cp - b * sp + cx)
+                y = int(a * sp + b * cp + cy)
+                if x >= 0 and x < h and y >= 0 and y < w:
+                    J[x, y, :] = 0.0
+                    J[x, y, 0] = 255
+
+        for a in np.linspace(-L / 2, L / 2, int(L)):
+            for b in (-W / 2, W / 2):
+                x = int(a * cp - b * sp + cx)
+                y = int(a * sp + b * cp + cy)
+                if x >= 0 and x < h and y >= 0 and y < w:
+                    J[x, y, :] = 0.0
+                    J[x, y, 0] = 255
+    return J
+
+
+# optimal_diffs = []
+# for i in range(0,360):
+#     h,w = get_optimal_rotated_shape(10, 5, i / 180 * np.pi)
+#     optimal_diffs.append(h-w)
+# plt.plot(optimal_diffs)
+# plt.show()

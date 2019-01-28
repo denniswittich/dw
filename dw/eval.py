@@ -8,12 +8,6 @@ from numba import jit
 import numpy as np
 import matplotlib.pyplot as plt
 
-@jit(nopython=True)
-def update_confusion_matrix(confusions, predicted_labels, reference_labels):
-    reshaped_pr = np.ravel(predicted_labels)
-    reshaped_gt = np.ravel(reference_labels)
-    for predicted, actual in zip(reshaped_pr, reshaped_gt):
-        confusions[predicted, actual] += 1
 
 def get_confusion_metrics(confusion_matrix):
     """Computes confusion metrics out of a confusion matrix (N classes)
