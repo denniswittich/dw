@@ -398,7 +398,7 @@ def get_optimal_rotated_shape(h, w, rad):
     return best_height, best_width
 
 
-@jit(float32[:, :, :](float32[:, :, :], float32, boolean), nopython=True, cache=True)
+@jit(nopython=True)
 def get_zoomed_central_rotation(img, rad, interpolate):
     h, w, d = img.shape
     h_, w_ = get_optimal_rotated_shape(h, w, rad)
