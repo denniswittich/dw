@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit
+from numba import jit, float32, float64, int64, void, types, boolean, uint8, int32
 import imageio
 
 
