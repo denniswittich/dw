@@ -4,7 +4,7 @@ Last edited on Oct 10 2018
 @author: Dennis Wittich
 """
 
-from numba import jit
+from numba import jit, float32, float64, int64, void, types, boolean, uint8, int32
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -107,6 +107,7 @@ def update_confusion_matrix(confusions, predicted_labels, reference_labels):
     reshaped_gt = np.ravel(reference_labels)
     for predicted, actual in zip(reshaped_pr, reshaped_gt):
         confusions[predicted, actual] += 1
+
 
 def plot_confusions(confusions):
     num = confusions.shape[0]
