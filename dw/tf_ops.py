@@ -108,7 +108,7 @@ def residual_unit(id, input, padding="SAME"):
         a2 = tf.nn.relu(conv(id + 'c2', a1, channels, 3))
     elif padding == "VALID":
         a1 = tf.nn.relu(conv(id + 'c1', input, channels, 3, padding="VALID"))
-        a2 = tf.nn.relu(transposed_conv(id + 'c2', a1, channels, 3, padding="VALID"))
+        a2 = tf.nn.relu(t_conv(id + 'c2', a1, channels, 3, padding="VALID"))
 
     return input + a2
 
