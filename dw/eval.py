@@ -103,10 +103,12 @@ def print_stats(X, y, classes, features):
 
 @jit(nopython=True)
 def update_confusion_matrix(confusions, predicted_labels, reference_labels):
+    # reference labels with label < 0 will not be considered
     reshaped_pr = np.ravel(predicted_labels)
     reshaped_gt = np.ravel(reference_labels)
     for predicted, actual in zip(reshaped_pr, reshaped_gt):
-        confusions[predicted, actual] += 1
+        if actual >= 0:
+            confusions[predicted, actual] += 1
 
 
 def plot_confusions(confusions):

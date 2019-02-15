@@ -25,6 +25,41 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
                             padding=padding, kernel_initializer=init, name='conv' + id, use_bias=use_bias)
 
 
+def s_conv(id, input, multiplier, out_channels, size=3, stride=1, use_bias=True, padding="SAME", init_stddev=-1.0):
+    assert padding in ["SAME", "VALID", "REFLECT"], 'valid paddings are "SAME", "VALID", "REFLECT"'
+    in_ch = input.get_shape().as_list()[-1]
+    if type(size) == int:
+        size = [size, size]
+    if init_stddev <= 0.0:
+        init = tf.contrib.layers.variance_scaling_initializer(dtype=tf.float32)
+    else:
+        init = tf.truncated_normal_initializer(stddev=init_stddev)
+
+    if padding == "REFLECT":
+        assert size[0] % 2 == 1 and size[1] % 2 == 1, "REFLECTION PAD ONLY WORKING FOR ODD FILTER SIZE.. " + str(size)
+        pad_x = size[0] // 2
+        pad_y = size[1] // 2
+        input = tf.pad(input, [[0, 0], [pad_x, pad_x], [pad_y, pad_y], [0, 0]], "REFLECT")
+        padding = "VALID"
+
+    spatial_filters = tf.get_variable('spatial_filters' + id, initializer=init,
+                                      shape=[size[0], size[1], in_ch, multiplier])
+    point_filters = tf.get_variable('point_filters' + id, initializer=init,
+                                    shape=[1, 1, in_ch * multiplier, out_channels])
+
+    return tf.nn.separable_conv2d(input, spatial_filters, point_filters, strides=[1, stride, stride, 1],
+                                  padding=padding, name='zero-conv_' + id)
+
+
+def z_conv(id, input, channels, size, stride=1, padding="SAME"):
+    in_ch = input.get_shape().as_list()[-1]
+    # init = tf.contrib.layers.variance_scaling_initializer(dtype=tf.float32)
+    init = tf.truncated_normal_initializer(mean=0.0, stddev=0.02)
+    filters = tf.get_variable('zero_conv_weights' + id, initializer=init, shape=[size, size, in_ch, channels])
+    filters = filters - tf.reduce_mean(filters, axis=[0, 1, 2], keepdims=True)
+    return tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding=padding, name='zero-conv_' + id)
+
+
 def t_conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", init_stddev=-1.0):
     # good old t-conv. I love it!
 
@@ -96,8 +131,8 @@ def instance_norm(input):
     return tf.contrib.layers.instance_norm(input)
 
 
-def dropout(id, input, is_train, keeprate=0.5):
-    return tf.layers.dropout(input, rate=keeprate, training=is_train, name='dropout' + id)
+def dropout(id, input, is_train, rate=0.5):
+    return tf.layers.dropout(input, rate=rate, training=is_train, name='dropout' + id)
 
 
 def residual_unit(id, input, padding="SAME"):
