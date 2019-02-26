@@ -179,3 +179,19 @@ def smooth1d(a, n):
                 summ += a[k]
         b[i] = summ / n
     return b
+
+
+class mav(object):
+    def __init__(self, initial_value=0.0, momentum=0.9, print_accuracy=3):
+        assert 0.0 < momentum < 1.0, "momentum has to be between 0.0 and 1.0"
+        self.value = float(initial_value)
+        self.momentum = float(momentum)
+        self.inc = 1.0 - momentum
+        self.str = '{:.'+str(int(print_accuracy))+'}'
+
+    def __call__(self, other):
+        self.value = self.value * self.momentum + other * self.inc
+        return self
+
+    def __str__(self):
+        return self.str.format(self.value)
