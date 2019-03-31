@@ -182,15 +182,15 @@ def smooth1d(a, n):
 
 
 class mav(object):
-    def __init__(self, initial_value=0.0, momentum=0.9, print_accuracy=3):
+    def __init__(self, initial_value=None, momentum=0.9, print_accuracy=4):
         assert 0.0 < momentum < 1.0, "momentum has to be between 0.0 and 1.0"
-        self.value = float(initial_value)
+        self.value = None if not initial_value else float(initial_value)
         self.momentum = float(momentum)
         self.inc = 1.0 - momentum
-        self.str = '{:.'+str(int(print_accuracy))+'}'
+        self.str = '{:.'+str(int(print_accuracy))+'f}'
 
     def __call__(self, other):
-        self.value = self.value * self.momentum + other * self.inc
+        self.value = float(other) if not self.value else self.value * self.momentum + other * self.inc
         return self
 
     def __str__(self):
