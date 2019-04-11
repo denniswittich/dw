@@ -19,70 +19,35 @@ def get_confusion_metrics(confusion_matrix):
 
         Returns
         -------
-        out1 : numpy.ndarray
-            class distribution [N] with sum = 1.0
-        out2 : numpy.ndarray
-            precisions [N] TP/(TP+FP)
-        out3 : numpy.ndarray
-            recall [N] TP/(TP+FN)
-        out4 : numpy.ndarray
-            f1 [N] harmonic mean of precision and recall
-        out5 : numpy.ndarray
-            mean of all f1 scores
+        metrics : dict
+            a dictionary holding all computed metrics
 
         Notes
         -----
-        'I' will always have 3 dimensions: (rows, columns dimensions).
-        Last dimension will be of length 1 or 3, depending on the image.
+        Metrics are: 'percentages', 'precisions', 'recalls', 'f1s', 'mf1', 'oa'
 
     """
+
     tp = np.diag(confusion_matrix)
     tp_fn = np.sum(confusion_matrix, axis=0)
     tp_fp = np.sum(confusion_matrix, axis=1)
-    pctgs = tp_fn / np.sum(confusion_matrix)
+    percentages = tp_fn / np.sum(confusion_matrix)
     precisions = tp / tp_fp
-    recall = tp / tp_fn
-    f1 = 2 * (precisions * recall) / (precisions + recall)
-    f1[np.isnan(f1)] = 0.0
-    f1[pctgs == 0.0] = np.nan
-    mean_f1 = np.nanmean(f1)
+    recalls = tp / tp_fn
+    f1s = 2 * (precisions * recalls) / (precisions + recalls)
+    f1s[np.isnan(f1s)] = 0.0
+    f1s[percentages == 0.0] = np.nan
+    mf1 = np.nanmean(f1s)
     oa = np.trace(confusion_matrix) / np.sum(confusion_matrix)
-    return pctgs, precisions, recall, f1, mean_f1, oa
 
+    metrics = {'percentages': percentages,
+               'precisions': precisions,
+               'recalls': recalls,
+               'f1s': f1s,
+               'mf1': mf1,
+               'oa': oa}
 
-def plot_table_chart(data, rows=None, columns=None, y_label='', title='', cell_rule='{}', cmap=plt.cm.Accent):
-    n_rows, n_cols = data.shape[:2]
-
-    if not columns:
-        columns = [str(i) for i in range(n_cols)]
-    if not rows:
-        rows = [str(i) for i in range(n_rows)]
-
-    # Get some pastel shades for the colors
-    colors = cmap(np.linspace(0, 0.5, len(rows)))
-
-    cell_text = []
-    for row in range(n_rows):
-        plt.plot(data[row], color=colors[row])
-        cell_text.append([cell_rule.format(v) for v in data[row]])
-    # Reverse colors and text labels to display the last value at the top.
-    colors = colors[::-1]
-    cell_text.reverse()
-
-    tab = plt.table(cellText=cell_text,
-                    rowLabels=rows,
-                    rowColours=colors,
-                    colLabels=columns,
-                    loc='bottom')
-    tab.scale(1, 2)
-
-    # Adjust layout to make room for the table:
-    plt.subplots_adjust(left=0.2, bottom=0.2)
-
-    plt.ylabel(y_label)
-    plt.xticks([])
-    plt.title(title)
-    plt.show()
+    return metrics
 
 
 # =====================================================================
@@ -181,13 +146,15 @@ def smooth1d(a, n):
     return b
 
 
-class mav(object):
+class mova(object):
+    # class to keep track of the MOVING AVERAGE of a variable
+
     def __init__(self, initial_value=None, momentum=0.9, print_accuracy=4):
         assert 0.0 < momentum < 1.0, "momentum has to be between 0.0 and 1.0"
         self.value = None if not initial_value else float(initial_value)
         self.momentum = float(momentum)
         self.inc = 1.0 - momentum
-        self.str = '{:.'+str(int(print_accuracy))+'f}'
+        self.str = '{:.' + str(int(print_accuracy)) + 'f}'
 
     def __call__(self, other):
         self.value = float(other) if not self.value else self.value * self.momentum + other * self.inc
@@ -195,3 +162,40 @@ class mav(object):
 
     def __str__(self):
         return self.str.format(self.value)
+
+
+# =============== EXPERIMENTS
+
+def plot_table_chart(data, rows=None, columns=None, y_label='', title='', cell_rule='{}', cmap=plt.cm.Accent):
+    n_rows, n_cols = data.shape[:2]
+
+    if not columns:
+        columns = [str(i) for i in range(n_cols)]
+    if not rows:
+        rows = [str(i) for i in range(n_rows)]
+
+    # Get some pastel shades for the colors
+    colors = cmap(np.linspace(0, 0.5, len(rows)))
+
+    cell_text = []
+    for row in range(n_rows):
+        plt.plot(data[row], color=colors[row])
+        cell_text.append([cell_rule.format(v) for v in data[row]])
+    # Reverse colors and text labels to display the last value at the top.
+    colors = colors[::-1]
+    cell_text.reverse()
+
+    tab = plt.table(cellText=cell_text,
+                    rowLabels=rows,
+                    rowColours=colors,
+                    colLabels=columns,
+                    loc='bottom')
+    tab.scale(1, 2)
+
+    # Adjust layout to make room for the table:
+    plt.subplots_adjust(left=0.2, bottom=0.2)
+
+    plt.ylabel(y_label)
+    plt.xticks([])
+    plt.title(title)
+    plt.show()
