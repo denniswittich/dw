@@ -78,7 +78,7 @@ def update_confusion_matrix(confusions, predicted_labels, reference_labels):
 
 def plot_confusions(confusions):
     num = confusions.shape[0]
-    print('\nConfusion Matrix:')
+    #print('\nConfusion Matrix:')
     plt.figure()
     plt.xlabel('Actual')
     plt.ylabel('Predicted')
@@ -91,22 +91,30 @@ def plot_confusions(confusions):
             if count > 0:
                 xoff = .07 * len(str(count))
                 plt.text(j - xoff, i + .2, int(count), fontsize=9, color='white')
+    plt.show()
 
 
-def print_pct_precision_recall_f1(confusions):
-    pctgs, precisions, recall, f1, mean_f1, oa = get_pctg_precision_recall_f1_meanf1(confusions)
+def print_metrics(confusions):
+    metrics = get_confusion_metrics(confusions)
 
     print('\nclass | pct of data | precision |   recall  |    f1',
           '\n-----------------------------------------------------')
 
-    for i in range(len(pctgs)):
-        pct = '{:.3%}'.format(pctgs[i]).rjust(9)
+    percentages = metrics["percentages"]
+    precisions = metrics["precisions"]
+    recall = metrics["recalls"]
+    f1 = metrics["f1s"]
+    mf1 = metrics["mf1"]
+    oa = metrics["oa"]
+
+    for i in range(len(percentages)):
+        pct = '{:.3%}'.format(percentages[i]).rjust(9)
         p = '{:.3%}'.format(precisions[i]).rjust(7)
         r = '{:.3%}'.format(recall[i]).rjust(7)
         f = '{:.3%}'.format(f1[i]).rjust(7)
         print('   {:2d} |  {}  |  {}  |  {}  | {}\n'.format(i, pct, p, r, f))
 
-    print('mean f1-score: {:.3%}'.format(mean_f1))
+    print('mean f1-score: {:.3%}'.format(mf1))
     print('Overall accuracy: {:.3%}'.format(oa))
 
 
