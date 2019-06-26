@@ -56,7 +56,7 @@ class Circle():
     def draw(self, I):
         t = 30 - self.radius / 80
         if t > 0.0:
-            draw_circle_smooth(self.center[0], self.center[1],self.radius,200,0,I)
+            draw_circle_smooth(self.center[0], self.center[1], self.radius, 200, 0, I)
             # self.big_canvas *= 0
             # cv2.circle(self.big_canvas,
             #            (int(self.center[0] * draw_scale), int(self.center[1] * draw_scale)),
@@ -88,41 +88,49 @@ class Point():
         # cv2.circle(I, (int(self.pos[0]), int(self.pos[1])), 5, (255, 255, 255))
 
 
-points = [Point() for i in range(4)]
 
-circles = [Circle(c) for c in [(255, 0, 0), (0, 255, 0), (0, 0, 255)]]
-circles[0].tick(points[0], points[1], points[2])
-circles[1].tick(points[3], points[1], points[2])
-circles[2].tick(points[0], points[3], points[2])
+def run(out_path):
 
-frames = 1000
-frame = 0
-out = cv2.VideoWriter('C:/Users/denni/Desktop/noise.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 25, (128, 128))
+    points = [Point() for i in range(4)]
 
-while frame < frames or True:
-    frame += 1
-    canvas = canvas * 0.0
-
-    for point in points:
-        point.tick()
+    circles = [Circle(c) for c in [(255, 0, 0), (0, 255, 0), (0, 0, 255)]]
     circles[0].tick(points[0], points[1], points[2])
     circles[1].tick(points[3], points[1], points[2])
     circles[2].tick(points[0], points[3], points[2])
 
-    for point in points:
-        point.draw(canvas)
-    for circle in circles:
-        circle.draw(canvas)
+    frames = 1000
+    frame = 0
+    out = cv2.VideoWriter(out_path + 'noise.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 25, (128, 128))
 
-    canvas_b = np.clip(canvas, 0, 255).astype(np.ubyte)
+    while frame < frames or True:
+        frame += 1
+        canvas = canvas * 0.0
 
-    # images.append(I)
-    # out.write(I)
+        for point in points:
+            point.tick()
+        circles[0].tick(points[0], points[1], points[2])
+        circles[1].tick(points[3], points[1], points[2])
+        circles[2].tick(points[0], points[3], points[2])
 
-    cv2.imshow('frame', canvas_b)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        for point in points:
+            point.draw(canvas)
+        for circle in circles:
+            circle.draw(canvas)
 
-cv2.destroyAllWindows()
-out.release()
-imageio.mimsave('C:/Users/denni/Desktop/noise.gif', images)
+        canvas_b = np.clip(canvas, 0, 255).astype(np.ubyte)
+
+        # images.append(I)
+        # out.write(I)
+
+        cv2.imshow('frame', canvas_b)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cv2.destroyAllWindows()
+    out.release()
+    imageio.mimsave(out_path + 'noise.gif', images)
+
+
+
+if __name__ == '__main__':
+    run('./')
