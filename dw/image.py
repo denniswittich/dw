@@ -1,6 +1,5 @@
-import numpy as np
-from numba import jit, float32, float64, int64, void, types, boolean, uint8, int32
-import imageio
+import numpy as np, imageio
+from numba import jit
 
 
 # ===== IO
@@ -77,15 +76,16 @@ def extend_mean(I, border_width):
     out_image[s:h + s, s:w + s, :] = I
     return out_image
 
+
 # ================= CONVERSION ====================
 
-@jit(float64[:, :, :](float64[:, :, :], int64[:, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def label_map2label_image_avg(image, label_map):
     h, w, d = image.shape
 
     num_labels = np.max(label_map) + 1
-    label_image = np.zeros((h, w, d), dtype=np.float64)
-    avgs = np.zeros((num_labels, d), dtype=np.float64)
+    label_image = np.zeros((h, w, d), dtype=np.float32)
+    avgs = np.zeros((num_labels, d), dtype=np.float32)
     pxcounter = np.zeros((num_labels), dtype=np.int64)
 
     ## CALCULATE AVG. COLOR / GRAY VALUE PER LABEL
@@ -109,7 +109,7 @@ def label_map2label_image_avg(image, label_map):
     return label_image
 
 
-@jit(float64[:](float64), nopython=True, cache=True)
+@jit(nopython=True)
 def get_saturated_color(hue):
     c = 1.0
     x = 1 - abs((hue / 60) % 2 - 1)
@@ -126,31 +126,30 @@ def get_saturated_color(hue):
     else:
         r_, g_, b_ = c, 0, x
 
-    return np.array([r_, g_, b_], dtype=np.float64) * 255
+    return np.array([r_, g_, b_], dtype=np.float32) * 255
 
 
-@jit(float64[:](), nopython=True, cache=True)
+@jit(nopython=True)
 def get_random_color():
     return get_saturated_color(np.random.random() * 360)
 
 
-@jit(float64[:, :](int64), nopython=True, cache=True)
+@jit(nopython=True)
 def get_saturated_colors(num_colors):
-    colors = np.zeros((num_colors, 3), dtype=np.float64)
+    colors = np.zeros((num_colors, 3), dtype=np.float32)
     for i in range(num_colors):
         if i == 0:
-            colors[i, :] = np.ones(3, dtype=np.float64) * 255
+            colors[i, :] = np.ones(3, dtype=np.float32) * 255
         else:
             hue_i = 57 * i
             colors[i, :] = get_saturated_color(hue_i % 360) * (np.sin(i) / 4 + 0.75)
     return colors
 
 
-
-@jit(float64[:, :, :](int64[:, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def label_map2label_image(label_map):
     h, w = label_map.shape
-    label_image = np.zeros((h, w, 3), dtype=np.float64)
+    label_image = np.zeros((h, w, 3), dtype=np.float32)
     num_labels = np.max(label_map) + 1
 
     colors = get_saturated_colors(num_labels)
@@ -163,7 +162,7 @@ def label_map2label_image(label_map):
     return label_image
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def convert_to_1channel(image):
     h, w, d = image.shape
     if d == 1:
@@ -174,18 +173,17 @@ def convert_to_1channel(image):
     return result.reshape((h, w, 1))
 
 
-@jit(float64[:, :, :](float64[:, :, :], int64), nopython=True, cache=True)
+@jit(nopython=True)
 def get_channel(image, channel):
     return image[:, :, channel:channel + 1:]
 
-
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def convert_to_3channel(image):
     h, w, d = image.shape
     if d == 3:
         return image
 
-    result = np.zeros((h, w, 3), dtype=np.float64)
+    result = np.zeros((h, w, 3), dtype=np.float32)
     result[:, :, 0] = image[:, :, 0]
     result[:, :, 1] = image[:, :, 0]
     result[:, :, 2] = image[:, :, 0]
@@ -193,19 +191,19 @@ def convert_to_3channel(image):
     return result
 
 
-@jit(boolean[:, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def convert_to_binary(image):
     gray_image = convert_to_1channel(image)
     return gray_image[:, :, 0] != 0
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def rgb2hsv(image):
     h, w, d = image.shape
     assert d == 3
     image /= 255
 
-    hsv_image = np.zeros((h, w, 3), dtype=np.float64)
+    hsv_image = np.zeros((h, w, 3), dtype=np.float32)
     for x in range(h):
         for y in range(w):
             r, g, b = image[x, y, :]
@@ -235,12 +233,12 @@ def rgb2hsv(image):
     return hsv_image
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def hsv2rgb(hsv_image):
     h_, w_, d_ = hsv_image.shape
     assert d_ == 3
 
-    rgb_image = np.zeros((h_, w_, 3), dtype=np.float64)
+    rgb_image = np.zeros((h_, w_, 3), dtype=np.float32)
     for x in range(h_):
         for y in range(w_):
             h, s, v = hsv_image[x, y]
@@ -267,13 +265,13 @@ def hsv2rgb(hsv_image):
     return rgb_image
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def rgb2hsl(image):
     h, w, d = image.shape
     assert d == 3
     image /= 255
 
-    hsl_image = np.zeros((h, w, 3), dtype=np.float64)
+    hsl_image = np.zeros((h, w, 3), dtype=np.float32)
     for x in range(h):
         for y in range(w):
             r, g, b = image[x, y, :]
@@ -303,7 +301,7 @@ def rgb2hsl(image):
     return hsl_image
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def rgb2lab(image):
     # D65 / 2 deg
     Xn = 95.047
@@ -313,7 +311,7 @@ def rgb2lab(image):
     h, w, d = image.shape
     assert d == 3
 
-    lab_image = np.zeros((h, w, 3), dtype=np.float64)
+    lab_image = np.zeros((h, w, 3), dtype=np.float32)
     for x in range(h):
         for y in range(w):
             r, g, b = image[x, y, :]
@@ -348,13 +346,13 @@ def rgb2lab(image):
     return lab_image
 
 
-@jit(float64[:, :, :](boolean[:, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def binary2gray(mask):
     h, w = mask.shape
-    return mask.astype(np.float64).reshape((h, w, 1)) * 255
+    return mask.astype(np.float32).reshape((h, w, 1)) * 255
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def rgb2pca(image):
     h, w, d = image.shape
     N = h * w
@@ -364,7 +362,7 @@ def rgb2pca(image):
 
     ### COMPUTE COVARIANCE MATRIX
 
-    pixels = image.astype(np.float64).reshape((N, 3))
+    pixels = image.astype(np.float32).reshape((N, 3))
     pixels[:, 0] -= mean_r
     pixels[:, 1] -= mean_g
     pixels[:, 2] -= mean_b
@@ -381,12 +379,12 @@ def rgb2pca(image):
 
 ### =============== HISTOGRAM =======================
 
-@jit(float64[:, :, :](float64[:, :, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def histogram_normalisation(image, outlier_fraction):
     h, w, d = image.shape
     N = h * w
     num_outliers = int(N * (outlier_fraction / 2))
-    result = np.zeros(image.shape, dtype=np.float64)
+    result = np.zeros(image.shape, dtype=np.float32)
 
     for z in range(d):
         channel = image[:, :, z]
@@ -408,10 +406,10 @@ def histogram_normalisation(image, outlier_fraction):
     return result
 
 
-@jit(float64[:, :, :](float64[:, :, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def histogram_equalization(image, alpha):
     h, w, d = image.shape
-    result = np.zeros((h, w, d), dtype=np.float64)
+    result = np.zeros((h, w, d), dtype=np.float32)
 
     for z in range(d):
         channel = image[:, :, z].astype(np.ubyte)
@@ -433,10 +431,10 @@ def histogram_equalization(image, alpha):
     return result * alpha + image * (1 - alpha)
 
 
-@jit(float64[:, :, :](float64[:, :, :], float64, int64), nopython=True, cache=True)
+@jit(nopython=True)
 def local_histogram_equalization(image, alpha, M):
     h, w, d = image.shape
-    result = np.zeros((h, w, d), dtype=np.float64)
+    result = np.zeros((h, w, d), dtype=np.float32)
 
     ### CREATE MAPPING FUNCTIONS PER BLOCK
     ext_image = extend_same(image, 3 * M)
@@ -445,7 +443,7 @@ def local_histogram_equalization(image, alpha, M):
     num_blocks_y = int(w / M) + 2
     print(num_blocks_x, num_blocks_y)
 
-    mappings = np.zeros((num_blocks_x, num_blocks_y, d, 256), dtype=np.float64)
+    mappings = np.zeros((num_blocks_x, num_blocks_y, d, 256), dtype=np.float32)
 
     for x in range(num_blocks_x):
         for y in range(num_blocks_y):
@@ -481,7 +479,6 @@ def local_histogram_equalization(image, alpha, M):
                 result[x, y, z] = s_ * t_ * f00 + s * t_ * f10 + s_ * t * f01 + s * t * f11
 
     return result * alpha + image * (1 - alpha)
-
 
 
 # ===== FILTERING
@@ -544,14 +541,14 @@ def convolution(I, H):
 
         Parameters
         ----------
-        I : ndarray of float64
+        I : ndarray of float32
             3D array representing the image to convolve
-        H : ndarray of float64
+        H : ndarray of float32
             2D array, filter to convolve with
 
         Returns
         -------
-        out : ndarray of float64
+        out : ndarray of float32
             3D array, convolved image
 
         Notes
@@ -594,14 +591,14 @@ def gaussian_blur(I, sigma):
 
         Parameters
         ----------
-        I : ndarray of float64
+        I : ndarray of float32
             3D array representing the image to convolve
-        sigma : float64
+        sigma : float32
             Standard deviation of the gaussian filter
 
         Returns
         -------
-        out : ndarray of float64
+        out : ndarray of float32
             3D array, convolved image
 
         Notes
@@ -749,7 +746,7 @@ def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
     return result
 
 
-def mmmsd(I):
+def describe(I):
     try:
         print('min: {}, max {}, mean {}, shape {}, dtype {}'.format(np.min(I), np.max(I), np.mean(I), I.shape, I.dtype))
     except:
@@ -811,13 +808,12 @@ def get_zoomed_central_rotation(img, rad, interpolate):
     return extract_patch(img, rad, h / 2, w / 2, h_, w_, interpolate, False, False)
 
 
-
 def draw_mbrs(I, mbrs):
     """Draws minimum bounding rectangles to an image.
 
         Parameters
         ----------
-        I : ndarray of float64
+        I : ndarray of float32
             3D array representing the image
 
         mbrs : list of tuples of float
@@ -825,7 +821,7 @@ def draw_mbrs(I, mbrs):
 
         Returns
         -------
-        out : ndarray of float64
+        out : ndarray of float32
             3D array, image with rectangles
 
         Notes
@@ -855,9 +851,10 @@ def draw_mbrs(I, mbrs):
                     J[x, y, 0] = 255
     return J
 
+
 # ================= TRANSFORMATION ================
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def fourier_transformation(image):
     # radius = Image.shape[0]/2
     # for x in range(0, Image.shape[0]):
@@ -897,14 +894,12 @@ def fourier_transformation(image):
 # ================ BASIC TOOLS ====================
 
 
-
-
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def invert(image):
     return 255.0 - image
 
 
-@jit(float64[:, :, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def normalize(img):
     #
     #  |-5  3 12|  +5  |0  8 17| *255/13 | 0 120 255|
@@ -917,14 +912,13 @@ def normalize(img):
 
     assert max_value != 0, "Maximum value of image is zero"
 
-    return (img - min_value) * 255 / (max_value-min_value) # creates a copy
-
+    return (img - min_value) * 255 / (max_value - min_value)  # creates a copy
 
 
 # ===== SEGMENTATION
 
 
-@jit(int64[:, :](float64[:, :, :], float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def watershed_transform(image, sigma, seed_threshold):  # Meyer's flooding algorithm
     h, w, _ = image.shape
 
@@ -939,7 +933,7 @@ def watershed_transform(image, sigma, seed_threshold):  # Meyer's flooding algor
     (gmx, gmy), gmv = get_min_coords_2d_threshold(amplitude_map, max_amp_plus)
     num_candidates = 1
 
-    candidate_map = np.ones((h, w), dtype=np.float64) * max_amp_plus
+    candidate_map = np.ones((h, w), dtype=np.float32) * max_amp_plus
     visited_map = np.zeros((h, w), dtype=np.bool_)
     label_map = np.zeros((h, w), dtype=np.int64)
 
@@ -1002,13 +996,13 @@ def watershed_transform(image, sigma, seed_threshold):  # Meyer's flooding algor
 
 ### ========== THRESHOLDING =================
 
-@jit(boolean[:, :](float64[:, :, :], float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def gray_value_thresholding(image, g_min, g_max):
     mask = np.logical_and(image[:, :, 0] >= g_min, image[:, :, 0] <= g_max)
     return mask
 
 
-@jit(boolean[:, :](float64[:, :, :], float64, float64, float64, float64, float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def rgb_thresholding(image, r_min, r_max, g_min, g_max, b_min, b_max):
     h, w, _ = image.shape
     red_mask = np.logical_and(image[:, :, 0] >= r_min, image[:, :, 0] <= r_max)
@@ -1018,7 +1012,7 @@ def rgb_thresholding(image, r_min, r_max, g_min, g_max, b_min, b_max):
     return mask
 
 
-@jit(boolean[:, :](float64[:, :, :], float64, float64, float64, float64, float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def hsv_thresholding(hsv_image, h_min, h_max, s_min, s_max, v_min, v_max):
     hsv_image = rgb2hsv(hsv_image)
 
@@ -1034,13 +1028,13 @@ def hsv_thresholding(hsv_image, h_min, h_max, s_min, s_max, v_min, v_max):
 
 # ========== REGION GROWING ==============
 
-@jit(int64[:, :](float64[:, :, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def region_growing_gray(image, h_g):
     h, w, _ = image.shape
 
     num_unlabeled = h * w
     num_labels = 0
-    label_means = np.zeros((h * w), dtype=np.float64)
+    label_means = np.zeros((h * w), dtype=np.float32)
     label_sizes = np.zeros((h * w), dtype=np.int64)
     label_map = np.ones((h, w), dtype=np.int64) * -1  # -1 means unlabeled
     candidate_list = np.zeros((h * w, 2), dtype=np.int64)  # (index,coordinates)
@@ -1099,13 +1093,13 @@ def region_growing_gray(image, h_g):
     return label_map
 
 
-@jit(int64[:, :](float64[:, :, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def region_growing_color(image, h_g):
     h, w, _ = image.shape
 
     num_unlabeled = h * w
     num_labels = 0
-    label_means = np.zeros((h * w, 3), dtype=np.float64)
+    label_means = np.zeros((h * w, 3), dtype=np.float32)
     label_sizes = np.zeros((h * w), dtype=np.int64)
     label_map = np.ones((h, w), dtype=np.int64) * -1  # -1 means unlabeled
     candidate_list = np.zeros((h * w, 2), dtype=np.int64)  # (index,coordinates)
@@ -1164,7 +1158,7 @@ def region_growing_color(image, h_g):
     return label_map
 
 
-@jit(int64[:, :](int64[:, :], int64), nopython=True)
+@jit(nopython=True)
 def extend_map_2D(I, n):
     h, w = I.shape
     s = n
@@ -1198,13 +1192,13 @@ def extend_map_2D(I, n):
     return out_image
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def region_growing_lab_hsv(I, max_dist, min_pixels=1, smoothing=0):
     """Performs region growing on an color image in HSV space.
 
         Parameters
         ----------
-        I : ndarray of float64
+        I : ndarray of float32
             3D array representing the image
         max_dist : float
             maximum hsv distance to add a neighbour to a region [ >= 0.0]
@@ -1306,7 +1300,7 @@ def region_growing_lab_hsv(I, max_dist, min_pixels=1, smoothing=0):
         n = smoothing
         if n % 2 == 0:
             n += 1
-        R = np.zeros((h, w, 1), dtype=np.float64)
+        R = np.zeros((h, w, 1), dtype=np.float32)
         hfs = n // 2
         S_ext = extend_map_2D(S, hfs)
         h, w = S_ext.shape
@@ -1321,13 +1315,13 @@ def region_growing_lab_hsv(I, max_dist, min_pixels=1, smoothing=0):
 
 # =========== MEAN SHIFT =================
 
-@jit(float64[:, :, :](float64[:, :, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def mean_shift_gray(image, h_g):
     h, w, _ = image.shape
     f = -1.0 / (2.0 * h_g * h_g)
 
     num_modes = h * w
-    modes = np.ones((num_modes, 2), dtype=np.float64)  # gray value, count
+    modes = np.ones((num_modes, 2), dtype=np.float32)  # gray value, count
 
     ### INITIALIZE MODES (MERGE CLOSE)
 
@@ -1425,10 +1419,10 @@ def mean_shift_gray(image, h_g):
     return image
 
 
-@jit(float64[:, :, :](float64[:, :, :], float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def mean_shift_gray_space(image, h_g, h_s):
-    nominator = np.zeros((3), dtype=np.float64)
-    p_value = np.zeros((3), dtype=np.float64)
+    nominator = np.zeros((3), dtype=np.float32)
+    p_value = np.zeros((3), dtype=np.float32)
     h, w, _ = image.shape
     f_g = -1.0 / (2.0 * h_g * h_g)
     f_s = -1.0 / (2.0 * h_s * h_s)
@@ -1436,11 +1430,11 @@ def mean_shift_gray_space(image, h_g, h_s):
     h_s_sq = h_s * h_s
 
     num_modes = h * w
-    modes = np.ones((num_modes, 4), dtype=np.float64)  # gray value,x,y, count
+    modes = np.ones((num_modes, 4), dtype=np.float32)  # gray value,x,y, count
 
     ### INITIALIZE MODES (MERGE CLOSE)
 
-    m_new_value = np.zeros((3), dtype=np.float64)
+    m_new_value = np.zeros((3), dtype=np.float32)
     m_new = 0
     for x in range(h):
         for y in range(w):
@@ -1564,21 +1558,21 @@ def mean_shift_gray_space(image, h_g, h_s):
     return image
 
 
-@jit(float64[:, :, :](float64[:, :, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def mean_shift_color(image, h_c):
-    nominator = np.zeros((3), dtype=np.float64)
-    p_value = np.zeros((3), dtype=np.float64)
+    nominator = np.zeros((3), dtype=np.float32)
+    p_value = np.zeros((3), dtype=np.float32)
     h, w, _ = image.shape
     f_c = -1.0 / (2.0 * h_c * h_c)
 
     h_c_sq = h_c * h_c
 
     num_modes = h * w
-    modes = np.ones((num_modes, 4), dtype=np.float64)  # r,g,b, count
+    modes = np.ones((num_modes, 4), dtype=np.float32)  # r,g,b, count
 
     ### INITIALIZE MODES (MERGE CLOSE)
 
-    m_new_value = np.zeros((3), dtype=np.float64)
+    m_new_value = np.zeros((3), dtype=np.float32)
     m_new = 0
     for x in range(h):
         for y in range(w):
@@ -1689,10 +1683,10 @@ def mean_shift_color(image, h_c):
     return image
 
 
-@jit(float64[:, :, :](float64[:, :, :], float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def mean_shift_color_space(image, h_c, h_s):
-    nominator = np.zeros((5), dtype=np.float64)
-    p_value = np.zeros((5), dtype=np.float64)
+    nominator = np.zeros((5), dtype=np.float32)
+    p_value = np.zeros((5), dtype=np.float32)
     h, w, _ = image.shape
     f_c = -1.0 / (2.0 * h_c * h_c)
     f_s = -1.0 / (2.0 * h_s * h_s)
@@ -1701,11 +1695,11 @@ def mean_shift_color_space(image, h_c, h_s):
     h_s_sq = h_s * h_s
 
     num_modes = h * w
-    modes = np.ones((num_modes, 6), dtype=np.float64)  # gray value,x,y, count
+    modes = np.ones((num_modes, 6), dtype=np.float32)  # gray value,x,y, count
 
     ### INITIALIZE MODES (MERGE CLOSE)
 
-    m_new_value = np.zeros((5), dtype=np.float64)
+    m_new_value = np.zeros((5), dtype=np.float32)
     m_new = 0
     for x in range(h):
         for y in range(w):
@@ -1842,7 +1836,7 @@ def mean_shift_color_space(image, h_c, h_s):
 
 # ============= SUPER PIXELS ==================
 
-@jit(int64[:, :](float64[:, :, :], int64, float64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def slic(image, K, m, E):
     # K = number of superpixels
     # m = compactness
@@ -1861,9 +1855,9 @@ def slic(image, K, m, E):
 
     c = 0
 
-    avgs = np.zeros((num_clusters, 5), dtype=np.float64)
+    avgs = np.zeros((num_clusters, 5), dtype=np.float32)
     num_pixels = np.zeros((num_clusters), dtype=np.int64)
-    clusters = np.zeros((num_clusters, 5), dtype=np.float64)  # x,y,l,a,b
+    clusters = np.zeros((num_clusters, 5), dtype=np.float32)  # x,y,l,a,b
     xc = 0
     while xc <= h:
         yc = 0
@@ -1926,7 +1920,7 @@ def slic(image, K, m, E):
 
 # ============= POST PROCESSING ===============
 
-@jit(int64[:, :](float64[:, :, :]), nopython=True, cache=True)
+@jit(nopython=True)
 def connected_components(image):
     h, w, d = image.shape
 
@@ -2009,6 +2003,7 @@ def connected_components(image):
 
     return label_map
 
+
 # only 2 neighbours
 def get_border_pixels(C):
     h, w = C.shape
@@ -2068,7 +2063,8 @@ def get_border_pixels(C):
                 break
     return B
 
-@jit(int64[:, :](int64, int64, int64, int64), nopython=True, cache=True)
+
+@jit(nopython=True)
 def get_valid_neighbours(h, w, x, y):
     has_upper = x > 0
     has_lower = x < h - 1
@@ -2106,9 +2102,8 @@ def get_valid_neighbours(h, w, x, y):
     return neighbours[:neighbour_index, :]
 
 
-
 # n neighbours
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def get_border_pixels_dense(C):
     h, w = C.shape
     num_classes = np.max(C)
@@ -2130,11 +2125,11 @@ def get_border_pixels_dense(C):
 
 
 def get_perimeters(C):
-    w2 = 2**0.5
+    w2 = 2 ** 0.5
 
     h, w = C.shape
     num_classes = np.max(C)
-    perimeters = np.zeros(num_classes, dtype=np.float64)
+    perimeters = np.zeros(num_classes, dtype=np.float32)
 
     for c in range(1, num_classes):
 
@@ -2210,7 +2205,7 @@ def get_filters(sigma_min, sigma_max):
         N = int(6 * sigma)
         if N % 2 == 0:
             N += 1
-        filter = np.zeros((N, N), dtype=np.float64)
+        filter = np.zeros((N, N), dtype=np.float32)
         offset = N / 2 - 0.5
         two_sigma_sq = 2 * sigma * sigma
         for x_ in range(N):
@@ -2221,7 +2216,7 @@ def get_filters(sigma_min, sigma_max):
                 filter[x_, y_] = G_sigma
         filters += [filter]
 
-    #first, second derivatives
+    # first, second derivatives
 
     for sigma in np.linspace(sl, sh, 3):
         N = int(6 * sigma)
@@ -2233,8 +2228,8 @@ def get_filters(sigma_min, sigma_max):
         two_pi_sigma_6 = 2 * np.pi * sigma ** 6
 
         for alpha in np.linspace(0.0, np.pi, 6, endpoint=False):
-            filter_first = np.zeros((N, N), dtype=np.float64)
-            filter_second = np.zeros((N, N), dtype=np.float64)
+            filter_first = np.zeros((N, N), dtype=np.float32)
+            filter_second = np.zeros((N, N), dtype=np.float32)
             sa = np.sin(alpha)
             ca = np.cos(alpha)
             for x_ in range(N):
@@ -2261,7 +2256,7 @@ def get_filters(sigma_min, sigma_max):
         N = int(6 * sigma)
         if N % 2 == 0:
             N += 1
-        filter = np.zeros((N, N), dtype=np.float64)
+        filter = np.zeros((N, N), dtype=np.float32)
         offset = N / 2 - 0.5
         f0 = -1 / (np.pi * sigma ** 4)
         two_sigma_sq = 2 * sigma ** 2
@@ -2278,10 +2273,10 @@ def get_filters(sigma_min, sigma_max):
     return filters
 
 
-@jit(int64[:, :](float64[:, :, :], int64, int64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def cluster_features(features, k, iter, th):
     h, w, num_f = features.shape
-    means = np.random.uniform(0, 10, (k, num_f)).astype(np.float64)
+    means = np.random.uniform(0, 10, (k, num_f)).astype(np.float32)
     sums = np.zeros_like(means)
     counters = np.zeros((k), dtype=np.int64)
 
@@ -2341,7 +2336,7 @@ def filter_bank_clustering(image, sigma_min, sigma_max, k, th=0.1):
     filters = get_filters(sigma_min, sigma_max)
     num_f = len(filters)
     print('created {} filters'.format(num_f))
-    features = np.zeros((h, w, num_f), dtype=np.float64)
+    features = np.zeros((h, w, num_f), dtype=np.float32)
     for i in range(num_f):
         print('convolved with {} / {} filters'.format(i, num_f))
         feature_map = convolution.fast_sw_convolution(image, filters[i], convolution.SAME)
@@ -2354,14 +2349,14 @@ def filter_bank_clustering(image, sigma_min, sigma_max, k, th=0.1):
 
 # ================ SUPPRESSION ====================
 
-@jit(int64[:, :](int64[:, :], float64[:, :, :], int64), nopython=True, cache=True)
+@jit(nopython=True)
 def get_n_best_3d(candidates, value_matrix, num_best):
     num_candidates = candidates.shape[0]
     if num_candidates <= num_best:
         return np.copy(candidates)
 
     best_candidates = np.zeros((num_best, 3), dtype=np.int64)
-    values = np.zeros((num_candidates), dtype=np.float64)
+    values = np.zeros((num_candidates), dtype=np.float32)
     for i in range(num_candidates):
         c_x, c_y, c_z = candidates[i, :]
         values[i] = value_matrix[c_x, c_y, c_z]
@@ -2374,14 +2369,14 @@ def get_n_best_3d(candidates, value_matrix, num_best):
     return best_candidates
 
 
-@jit(int64[:, :](int64[:, :], float64[:, :, :, :], int64), nopython=True, cache=True)
+@jit(nopython=True)
 def get_n_best_4d(candidates, value_matrix, num_best):
     num_candidates = candidates.shape[0]
     if num_candidates <= num_best:
         return np.copy(candidates)
 
     best_candidates = np.zeros((num_best, 4), dtype=np.int64)
-    values = np.zeros((num_candidates), dtype=np.float64)
+    values = np.zeros((num_candidates), dtype=np.float32)
     for i in range(num_candidates):
         values[i] = value_matrix[candidates[i, 0], candidates[i, 1], candidates[i, 2], candidates[i, 3]]
 
@@ -2393,7 +2388,7 @@ def get_n_best_4d(candidates, value_matrix, num_best):
     return best_candidates
 
 
-@jit(int64[:, :](float64[:, :, :], int64), nopython=True, cache=True)
+@jit(nopython=True)
 def non_max_suppression_3d(matrix, search_width):
     matrix = np.copy(matrix)
     h, w, d = matrix.shape
@@ -2424,7 +2419,7 @@ def non_max_suppression_3d(matrix, search_width):
     return maximas[:num_maximas, :]
 
 
-@jit(int64[:, :](float64[:, :, :], int64, float64), nopython=True, cache=True)
+@jit(nopython=True)
 def non_max_suppression_3d_threshold(matrix, search_width, t):
     matrix = np.copy(matrix)
     h, w, d = matrix.shape
@@ -2457,7 +2452,7 @@ def non_max_suppression_3d_threshold(matrix, search_width, t):
     return maximas[:num_maximas, :]
 
 
-@jit(types.Tuple((int64[:], float64))(float64[:, :], float64), nopython=True, cache=True)
+@jit(nopython=True)
 def get_min_coords_2d_threshold(matrix, t):
     h, w = matrix.shape
 
@@ -2471,4 +2466,3 @@ def get_min_coords_2d_threshold(matrix, t):
                 min_coords[:] = (x, y)
 
     return (min_coords, t)
-
