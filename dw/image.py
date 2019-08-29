@@ -2088,7 +2088,7 @@ def get_neighbouring_segments(S):
         for y in range(w):
             s_id = S[x, y]
             N = get_valid_neighbours(h, w, x, y)
-            for nx, ny in N:
+            for nx, ny in list(N):
                 n_id = S[nx, ny]
                 neighbour_matrix[s_id, n_id] = True
                 neighbour_matrix[n_id, s_id] = True
