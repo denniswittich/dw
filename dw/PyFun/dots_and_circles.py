@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import imageio
 from numba import jit
-from matplotlib import pyplot as plt
 
 images = []
 
@@ -88,8 +87,8 @@ class Point():
         # cv2.circle(I, (int(self.pos[0]), int(self.pos[1])), 5, (255, 255, 255))
 
 
-
 def run(out_path):
+    global canvas
 
     points = [Point() for i in range(4)]
 
@@ -100,7 +99,7 @@ def run(out_path):
 
     frames = 1000
     frame = 0
-    out = cv2.VideoWriter(out_path + 'noise.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 25, (128, 128))
+    if not out_path is None: out = cv2.VideoWriter(out_path + 'noise.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 25, (128, 128))
 
     while frame < frames or True:
         frame += 1
@@ -119,8 +118,9 @@ def run(out_path):
 
         canvas_b = np.clip(canvas, 0, 255).astype(np.ubyte)
 
-        # images.append(I)
-        # out.write(I)
+        if not out_path is None:
+            images.append(canvas_b)
+            out.write(canvas_b)
 
         cv2.imshow('frame', canvas_b)
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -128,9 +128,9 @@ def run(out_path):
 
     cv2.destroyAllWindows()
     out.release()
-    imageio.mimsave(out_path + 'noise.gif', images)
+    if not out_path is None: imageio.mimsave(out_path + 'noise.gif', images)
 
 
 
 if __name__ == '__main__':
-    run('./')
+    run(None)

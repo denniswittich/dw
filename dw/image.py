@@ -918,6 +918,7 @@ def normalize(img):
 # ===== SEGMENTATION
 
 
+
 @jit(nopython=True)
 def watershed_transform(image, sigma, seed_threshold):  # Meyer's flooding algorithm
     h, w, _ = image.shape
@@ -992,6 +993,69 @@ def watershed_transform(image, sigma, seed_threshold):  # Meyer's flooding algor
             label_map[cx, cy] = label_vote
 
     return label_map
+
+@jit(nopython=True)
+def k_means(I, k):
+    """Performs k-means clustering on an image.
+
+        Parameters
+        ----------
+        I : ndarray of float64
+            3D array representing an image
+        k : int
+            number of means
+
+        Returns
+        -------
+        out : ndarray of float64
+            3D array, image, where each pixel is set to the value of closest mean
+
+        Notes
+        -----
+        Distance is computed with L2 norm.
+        Function takes single and multi channel images.
+    """
+    h, w, d = I.shape
+
+    S = np.zeros((h, w), dtype=np.int64)
+    k_map = np.zeros_like(S)
+    k_map_ = np.copy(k_map)
+    counts = np.zeros(k, dtype=np.float64)
+    means = np.random.uniform(0.0, np.max(I), (k, d)).astype(np.float64)
+    sums = np.zeros((k, d), dtype=np.float64)
+
+    for it in range(100):
+        counts *= 0
+        sums *= 0
+        for x in range(h):
+            for y in range(w):
+                dist_best = 0.0
+                k_best = 0
+                for m in range(k):
+                    dist_m = np.sum(np.square(means[m] - I[x, y, :]))
+                    if dist_m < dist_best or m == 0:
+                        k_best = m
+                        dist_best = dist_m
+                k_map[x, y] = k_best
+                sums[k_best, :] += I[x, y, :]
+                counts[k_best] += 1
+
+        for m in range(k):
+            if counts[m] > 0:
+                means[m] = np.copy(sums[m, :] / counts[m])
+
+        if np.sum(k_map - k_map_) == 0:
+            if it == 0:
+                means = np.random.uniform(0.0, np.max(I), (k, d)).astype(np.float64)
+            break
+        k_map_ = np.copy(k_map)
+
+    J = np.zeros_like(I)
+    for x in range(h):
+        for y in range(w):
+            J[x, y, :] = means[k_map[x, y]]
+
+    return J
 
 
 ### ========== THRESHOLDING =================
@@ -2003,6 +2067,114 @@ def connected_components(image):
 
     return label_map
 
+@jit(nopython=True)
+def get_neighbouring_segments(S):
+    """Return adjacency matrix.
+
+        Parameters
+        ----------
+        S : ndarray of int64
+            2D array representing the segment map
+
+        Returns
+        -------
+        out : ndarray of bool_
+            2D array, entry at i,j = True if segments i and j are neighbours
+    """
+    h, w = S.shape
+    num_s = np.max(S) + 1
+    neighbour_matrix = np.zeros((num_s, num_s), dtype=np.bool_)
+    for x in range(h):
+        for y in range(w):
+            s_id = S[x, y]
+            N = get_valid_neighbours(h, w, x, y)
+            for nx, ny in N:
+                n_id = S[nx, ny]
+                neighbour_matrix[s_id, n_id] = True
+                neighbour_matrix[n_id, s_id] = True
+    return neighbour_matrix
+
+@jit(nopython=True, cache=True)
+def get_contour_image(S):
+    """Computes a contour ID map from a segment map.
+
+        Parameters
+        ----------
+        S : ndarray of int64
+            2D array representing the segment map
+
+        Returns
+        -------
+        out : ndarray of int64
+            2D array representing the contour map
+
+        Notes
+        -----
+        Each entry of the contour map corresponds to the component ID,
+        if the entry it is on the contour of that component, else -1.
+        The contour map is computed via contour tracing.
+    """
+
+    h, w = S.shape
+    num_s = np.max(S) + 1
+    C = np.ones((h, w), dtype=np.int64) * -1
+
+    for s in range(num_s):
+
+        # GET CONTOUR SEED FOR CLASS 'c'
+        start_pixel = (-1, -1)
+        for x in range(h):
+            for y in range(w):
+                if S[x, y] == s:
+                    start_pixel = (x, y)
+                    break
+            if start_pixel[0] >= 0:
+                break
+
+        if start_pixel == (-1, -1):
+            continue
+
+        # FOLLOW CONTOUR OF SEGMENT 's'
+        search_dir = 0
+        current_pixel = start_pixel
+        done = False
+        while True:
+            cpx, cpy = current_pixel
+            C[cpx, cpy] = s
+            for i in range(8):  # while(True) failes with jit..
+                if search_dir == 0 and cpx > 0 and S[cpx - 1, cpy] == s:  # start at pixel above
+                    current_pixel = (cpx - 1, cpy)
+                    break
+                elif search_dir == 45 and cpx > 0 and cpy < w - 1 and S[cpx - 1, cpy + 1] == s:
+                    current_pixel = (cpx - 1, cpy + 1)
+                    break
+                elif search_dir == 90 and cpy < w - 1 and S[cpx, cpy + 1] == s:
+                    current_pixel = (cpx, cpy + 1)
+                    break
+                elif search_dir == 135 and cpx < h - 1 and cpy < w - 1 and S[cpx + 1, cpy + 1] == s:
+                    current_pixel = (cpx + 1, cpy + 1)
+                    break
+                elif search_dir == 180 and cpx < h - 1 and S[cpx + 1, cpy] == s:
+                    current_pixel = (cpx + 1, cpy)
+                    break
+                elif search_dir == 225 and cpx < h - 1 and cpy > 0 and S[cpx + 1, cpy - 1] == s:
+                    current_pixel = (cpx + 1, cpy - 1)
+                    break
+                elif search_dir == 270 and cpy > 0 and S[cpx, cpy - 1] == s:
+                    current_pixel = (cpx, cpy - 1)
+                    break
+                elif search_dir == 315 and cpx > 0 and cpy > 0 and S[cpx - 1, cpy - 1] == s:
+                    current_pixel = (cpx - 1, cpy - 1)
+                    break
+                search_dir = (search_dir + 45) % 360
+                if search_dir == 0 and start_pixel == current_pixel:
+                    done = True
+                    break
+            search_dir = (search_dir + 270) % 360
+
+            if done:
+                break
+    return C
 
 # only 2 neighbours
 def get_border_pixels(C):
@@ -2190,6 +2362,145 @@ def get_perimeters(C):
             if current_pixel == start_pixel:
                 break
     return perimeters
+
+
+@jit(nopython=True, cache=True)
+def get_geometric_segment_features(S):
+    """Computes the geometric segment features, based on a segment map.
+
+        Parameters
+        ----------
+        S : ndarray of int64
+            2D array representing a segment map
+
+        Returns
+        -------
+        out : tuple
+            areas, compactnesses, MBRs, fill factors, elongations
+
+        Notes
+        -----
+        Definitions
+        areas : list of float
+        compactnesses : list of float
+        MBRs : list of tuples of floats : (angle, length, with, center x, center y)
+        fill factors : list of float
+        elongations : list of float
+    """
+
+    h, w = S.shape
+    num_s = np.max(S) + 1
+    C = get_contour_image(S)
+
+    reg_moms = np.zeros((num_s, 2, 2), dtype=np.int64)
+    cen_moms = np.zeros((num_s, 3, 3), dtype=np.int64)
+    perimeters = np.zeros((num_s), dtype=np.int64)
+    mass_centres = np.zeros((num_s, 2), dtype=np.float64)
+    mbrs = np.zeros((num_s, 5), dtype=np.float64)  # phi, L, W, x_, y_
+
+    for x in range(h):
+        for y in range(w):
+            s = S[x, y]
+            reg_moms[s, 0, 0] += 1
+            reg_moms[s, 1, 0] += x
+            reg_moms[s, 0, 1] += y
+            if C[x, y] >= 0:
+                perimeters[C[x, y]] += 1
+
+    areas = reg_moms[:, 0, 0]
+    mass_centres[:, 0] = reg_moms[:, 1, 0] / areas
+    mass_centres[:, 1] = reg_moms[:, 0, 1] / areas
+
+    # cent_moms, neighbours
+
+    for x in range(h):
+        for y in range(w):
+            s = S[x, y]
+            x_ = x - mass_centres[s, 0]
+            y_ = y - mass_centres[s, 1]
+            cen_moms[s, 1, 1] += x_ * y_
+            cen_moms[s, 2, 0] += x_ * x_
+            cen_moms[s, 0, 2] += y_ * y_
+            # cen_moms[s, .. ] += ..
+
+    comps = np.square(perimeters) / (4 * np.pi * reg_moms[:, 0, 0])
+
+    mbrs[:, 0] = 0.5 * np.arctan2(2 * cen_moms[:, 1, 1], (cen_moms[:, 2, 0] - cen_moms[:, 0, 2]))
+    c_phis = np.cos(mbrs[:, 0])
+    s_phis = np.sin(mbrs[:, 0])
+
+    ab_min = np.ones((num_s, 2), dtype=np.float64) * h * w
+    ab_max = np.ones((num_s, 2), dtype=np.float64) * h * w * -1
+
+    for x in range(h):
+        for y in range(w):
+            s = C[x, y]
+            if s >= 0:
+                cp = c_phis[s]
+                sp = s_phis[s]
+                a = x * cp + y * sp
+                b = -x * sp + y * cp
+
+                if a > ab_max[s, 0]:
+                    ab_max[s, 0] = a
+                if a < ab_min[s, 0]:
+                    ab_min[s, 0] = a
+
+                if b > ab_max[s, 1]:
+                    ab_max[s, 1] = b
+                if b < ab_min[s, 1]:
+                    ab_min[s, 1] = b
+
+    ab_mean = (ab_max + ab_min) / 2
+    mbrs[:, 3] = ab_mean[:, 0] * c_phis - ab_mean[:, 1] * s_phis
+    mbrs[:, 4] = ab_mean[:, 0] * s_phis + ab_mean[:, 1] * c_phis
+
+    mbrs[:, 1:3] = np.abs(ab_max - ab_min)
+
+    fill_factors = areas / (mbrs[:, 1] * mbrs[:, 2])
+    elongations = np.abs(np.log(np.abs(mbrs[:, 1] / mbrs[:, 2])))
+
+    return areas, comps, mbrs, fill_factors, elongations
+
+
+@jit(nopython=True, cache=True)
+def get_spectral_segment_features(S, I):
+    """Computes the spectral features of all segments.
+
+        Parameters
+        ----------
+        S : ndarray of int64
+            2D array representing a segment map
+
+        I : ndarray of float64
+            3D array representing the image
+
+        Returns
+        -------
+        out : tuple
+            mean rgb values, means hsv values
+
+        Notes
+        -----
+        Definitions
+        mean rgb values : list of tuples of floats : (mean red, mean green, mean blue)
+        mean hsv values : list of tuples of floats : (mean hue, mean saturation, mean value)
+    """
+    HSV = rgb2hsv(I)
+    num_s = np.max(S) + 1
+
+    means_rgb = np.zeros((num_s, 3), dtype=np.float64)
+    means_hsv = np.zeros_like(means_rgb)
+
+    for s in range(num_s):
+        M = (S == s).astype(np.float64)
+        sum_M = np.sum(M)
+        means_rgb[s, :] = (
+            np.sum(I[:, :, 0] * M) / sum_M, np.sum(I[:, :, 1] * M) / sum_M, np.sum(I[:, :, 2] * M) / sum_M)
+        means_hsv[s, :] = (
+            np.sum(HSV[:, :, 0] * M) / sum_M, np.sum(HSV[:, :, 1] * M) / sum_M, np.sum(HSV[:, :, 2] * M) / sum_M)
+
+    return means_rgb, means_hsv
 
 
 # ============= FILTER BANK CLUSTERING ========
