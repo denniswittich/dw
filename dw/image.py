@@ -2238,7 +2238,7 @@ def get_border_pixels(C):
 
 
 @jit(nopython=True)
-def get_valid_neighbours(h, w, x, y):
+def get_valid_neighbours(h, w, x, y, neighbourhood = 8):
     has_upper = x > 0
     has_lower = x < h - 1
     has_left = y > 0
@@ -2247,30 +2247,60 @@ def get_valid_neighbours(h, w, x, y):
     neighbours = np.zeros((8, 2), dtype=np.int64)
     neighbour_index = 0
 
-    if has_upper:
-        neighbours[neighbour_index, :] = (x - 1, y)
-        neighbour_index += 1
-    if has_lower:
-        neighbours[neighbour_index, :] = (x + 1, y)
-        neighbour_index += 1
-    if has_left:
-        neighbours[neighbour_index, :] = (x, y - 1)
-        neighbour_index += 1
-    if has_right:
-        neighbours[neighbour_index, :] = (x, y + 1)
-        neighbour_index += 1
-    if has_right and has_upper:
-        neighbours[neighbour_index, :] = (x - 1, y + 1)
-        neighbour_index += 1
-    if has_left and has_upper:
-        neighbours[neighbour_index, :] = (x - 1, y - 1)
-        neighbour_index += 1
-    if has_left and has_lower:
-        neighbours[neighbour_index, :] = (x + 1, y - 1)
-        neighbour_index += 1
-    if has_right and has_lower:
-        neighbours[neighbour_index, :] = (x + 1, y + 1)
-        neighbour_index += 1
+    if neighbourhood == 8:
+
+        if has_upper:
+            neighbours[neighbour_index, :] = (x - 1, y)
+            neighbour_index += 1
+        if has_lower:
+            neighbours[neighbour_index, :] = (x + 1, y)
+            neighbour_index += 1
+        if has_left:
+            neighbours[neighbour_index, :] = (x, y - 1)
+            neighbour_index += 1
+            if has_upper:
+                neighbours[neighbour_index, :] = (x - 1, y - 1)
+                neighbour_index += 1
+            if has_lower:
+                neighbours[neighbour_index, :] = (x + 1, y - 1)
+                neighbour_index += 1
+        if has_right:
+            neighbours[neighbour_index, :] = (x, y + 1)
+            neighbour_index += 1
+            if has_upper:
+                neighbours[neighbour_index, :] = (x - 1, y + 1)
+                neighbour_index += 1
+            if has_lower:
+                neighbours[neighbour_index, :] = (x + 1, y + 1)
+                neighbour_index += 1
+
+        # if has_right and has_upper:
+        #     neighbours[neighbour_index, :] = (x - 1, y + 1)
+        #     neighbour_index += 1
+        # if has_left and has_upper:
+        #     neighbours[neighbour_index, :] = (x - 1, y - 1)
+        #     neighbour_index += 1
+        # if has_left and has_lower:
+        #     neighbours[neighbour_index, :] = (x + 1, y - 1)
+        #     neighbour_index += 1
+        # if has_right and has_lower:
+        #     neighbours[neighbour_index, :] = (x + 1, y + 1)
+        #     neighbour_index += 1
+
+    elif neighbourhood == 4:
+
+        if has_upper:
+            neighbours[neighbour_index, :] = (x - 1, y)
+            neighbour_index += 1
+        if has_lower:
+            neighbours[neighbour_index, :] = (x + 1, y)
+            neighbour_index += 1
+        if has_left:
+            neighbours[neighbour_index, :] = (x, y - 1)
+            neighbour_index += 1
+        if has_right:
+            neighbours[neighbour_index, :] = (x, y + 1)
+            neighbour_index += 1
 
     return neighbours[:neighbour_index, :]
 
