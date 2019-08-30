@@ -72,7 +72,7 @@ def update_confusion_matrix(confusions, predicted_labels, reference_labels):
     reshaped_pr = np.ravel(predicted_labels)
     reshaped_gt = np.ravel(reference_labels)
     for predicted, actual in zip(reshaped_pr, reshaped_gt):
-        if actual >= 0:
+        if actual >= 0 and predicted >= 0:
             confusions[predicted, actual] += 1
 
 
