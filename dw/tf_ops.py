@@ -19,7 +19,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
 
             slide_window = size[0] * size[1]
             mask = tf.ones(shape=[1, h, w, 1])
-            update_mask = tf.layers.conv2d(mask, filters=1, dilation_rate=(dilation, dilation),
+            update_mask = tf.layers.conv2d(mask, filters=1, dilation_rate=(dilation, dilation),name='mask'+id,
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
                                            strides=stride, padding="SAME", use_bias=False, trainable=False)
             mask_ratio = slide_window / (update_mask + 1e-8)
@@ -27,8 +27,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
             mask_ratio = mask_ratio * update_mask
 
         with tf.variable_scope('parconv'):
-            x = tf.layers.conv2d(input, filters=channels,
-                                 kernel_size=size, kernel_initializer=init,
+            x = tf.layers.conv2d(input, filters=channels, name='conv' + id, kernel_size=size, kernel_initializer=init,
                                  strides=stride, padding="SAME", use_bias=False)
             x = x * mask_ratio
             if use_bias:
@@ -91,7 +90,7 @@ def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
 
             slide_window = size[0] * size[1]
             mask = tf.ones(shape=[1, h, w, 1])
-            update_mask = tf.layers.conv2d(mask, filters=1,
+            update_mask = tf.layers.conv2d(mask, filters=1, name='mask'+id,
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
                                            strides=stride, padding= "SAME", use_bias=False, trainable=False)
             mask_ratio = slide_window / (update_mask + 1e-8)
