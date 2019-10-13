@@ -17,7 +17,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
         with tf.variable_scope('mask'):
             _, h, w, _ = input.get_shape().as_list()
 
-            slide_window = size * size
+            slide_window = size[0] * size[1]
             mask = tf.ones(shape=[1, h, w, 1])
             update_mask = tf.layers.conv2d(mask, filters=1, dilation_rate=(dilation, dilation),
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
@@ -87,7 +87,7 @@ def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
         with tf.variable_scope('mask'):
             _, h, w, _ = input.get_shape().as_list()
 
-            slide_window = size * size
+            slide_window = size[0] * size[1]
             mask = tf.ones(shape=[1, h, w, 1])
             update_mask = tf.layers.conv2d(mask, filters=1,
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
