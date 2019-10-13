@@ -31,7 +31,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
                                  strides=stride, padding="SAME", use_bias=False)
             x = x * mask_ratio
             if use_bias:
-                bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
+                bias = tf.get_variable("bias"+id, [channels], initializer=tf.constant_initializer(0.0))
                 x = tf.nn.bias_add(x, bias)
             return x * update_mask
 
@@ -101,7 +101,7 @@ def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
             x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding= "SAME", name='zero-conv_' + id)
             x = x * mask_ratio
             if use_bias:
-                bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
+                bias = tf.get_variable("bias"+id, [channels], initializer=tf.constant_initializer(0.0))
                 x = tf.nn.bias_add(x, bias)
             return x * update_mask
 
