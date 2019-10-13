@@ -78,10 +78,11 @@ def s_conv(id, input, multiplier, out_channels, size=3, stride=1, use_bias=True,
 
 # zero mean conv
 def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
+    if type(size) == int: size = [size, size]
     in_ch = input.get_shape().as_list()[-1]
     # init = tf.contrib.layers.variance_scaling_initializer(dtype=tf.float32)
     init = tf.truncated_normal_initializer(mean=0.0, stddev=0.02)
-    filters = tf.get_variable('zero_conv_weights' + id, initializer=init, shape=[size, size, in_ch, channels])
+    filters = tf.get_variable('zero_conv_weights' + id, initializer=init, shape=[size[0], size[1], in_ch, channels])
     filters = filters - tf.reduce_mean(filters, axis=[0, 1, 2], keepdims=True)
 
     if padding == "PARTIAL":
