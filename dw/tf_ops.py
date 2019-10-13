@@ -34,7 +34,8 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
             if use_bias:
                 bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
                 x = tf.nn.bias_add(x, bias)
-                return x * update_mask
+            return x * update_mask
+
 
     if padding == "REFLECT":
         assert size[0] % 2 == 1 and size[1] % 2 == 1, "REFLECTION PAD ONLY WORKING FOR ODD FILTER SIZE.. " + str(size)
@@ -102,7 +103,7 @@ def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
             if use_bias:
                 bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
                 x = tf.nn.bias_add(x, bias)
-                return x * update_mask
+            return x * update_mask
 
     x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding=padding, name='zero-conv_' + id)
     if use_bias:
