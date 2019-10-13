@@ -21,7 +21,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
             mask = tf.ones(shape=[1, h, w, 1])
             update_mask = tf.layers.conv2d(mask, filters=1, dilation_rate=(dilation, dilation),
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
-                                           strides=stride, padding=padding, use_bias=False, trainable=False)
+                                           strides=stride, padding="SAME", use_bias=False, trainable=False)
             mask_ratio = slide_window / (update_mask + 1e-8)
             update_mask = tf.clip_by_value(update_mask, 0.0, 1.0)
             mask_ratio = mask_ratio * update_mask
@@ -29,7 +29,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
         with tf.variable_scope('parconv'):
             x = tf.layers.conv2d(input, filters=channels,
                                  kernel_size=size, kernel_initializer=init,
-                                 strides=stride, padding=padding, use_bias=False)
+                                 strides=stride, padding="SAME", use_bias=False)
             x = x * mask_ratio
             if use_bias:
                 bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
@@ -91,13 +91,13 @@ def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
             mask = tf.ones(shape=[1, h, w, 1])
             update_mask = tf.layers.conv2d(mask, filters=1,
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
-                                           strides=stride, padding=padding, use_bias=False, trainable=False)
+                                           strides=stride, padding= "SAME", use_bias=False, trainable=False)
             mask_ratio = slide_window / (update_mask + 1e-8)
             update_mask = tf.clip_by_value(update_mask, 0.0, 1.0)
             mask_ratio = mask_ratio * update_mask
 
         with tf.variable_scope('parconv'):
-            x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding=padding, name='zero-conv_' + id)
+            x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding= "SAME", name='zero-conv_' + id)
             x = x * mask_ratio
             if use_bias:
                 bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
