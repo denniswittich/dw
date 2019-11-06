@@ -19,7 +19,7 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
 
             slide_window = size[0] * size[1]
             mask = tf.ones(shape=[1, h, w, 1])
-            update_mask = tf.layers.conv2d(mask, filters=1, dilation_rate=(dilation, dilation),name='mask'+id,
+            update_mask = tf.layers.conv2d(mask, filters=1, dilation_rate=(dilation, dilation), name='mask' + id,
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
                                            strides=stride, padding="SAME", use_bias=False, trainable=False)
             mask_ratio = slide_window / (update_mask + 1e-8)
@@ -31,10 +31,9 @@ def conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME", i
                                  strides=stride, padding="SAME", use_bias=False)
             x = x * mask_ratio
             if use_bias:
-                bias = tf.get_variable("bias"+id, [channels], initializer=tf.constant_initializer(0.0))
+                bias = tf.get_variable("bias" + id, [channels], initializer=tf.constant_initializer(0.0))
                 x = tf.nn.bias_add(x, bias)
             return x * update_mask
-
 
     if padding == "REFLECT":
         assert size[0] % 2 == 1 and size[1] % 2 == 1, "REFLECTION PAD ONLY WORKING FOR ODD FILTER SIZE.. " + str(size)
@@ -76,7 +75,7 @@ def s_conv(id, input, multiplier, out_channels, size=3, stride=1, use_bias=True,
 
 
 # zero mean conv
-def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
+def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False, dilation=1):
     if type(size) == int: size = [size, size]
     in_ch = input.get_shape().as_list()[-1]
     # init = tf.contrib.layers.variance_scaling_initializer(dtype=tf.float32)
@@ -90,22 +89,25 @@ def z_conv(id, input, channels, size, stride=1, padding="SAME", use_bias=False):
 
             slide_window = size[0] * size[1]
             mask = tf.ones(shape=[1, h, w, 1])
-            update_mask = tf.layers.conv2d(mask, filters=1, name='mask'+id,
+            update_mask = tf.layers.conv2d(mask, filters=1, name='mask' + id,
                                            kernel_size=size, kernel_initializer=tf.constant_initializer(1.0),
-                                           strides=stride, padding= "SAME", use_bias=False, trainable=False)
+                                           strides=stride, padding="SAME", use_bias=False, trainable=False,
+                                           dilation_rate=(dilation, dilation))
             mask_ratio = slide_window / (update_mask + 1e-8)
             update_mask = tf.clip_by_value(update_mask, 0.0, 1.0)
             mask_ratio = mask_ratio * update_mask
 
         with tf.variable_scope('parconv'):
-            x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding= "SAME", name='zero-conv_' + id)
+            x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding="SAME", name='zero-conv_' + id,
+                             dilations=(1, dilation, dilation, 1))
             x = x * mask_ratio
             if use_bias:
-                bias = tf.get_variable("bias"+id, [channels], initializer=tf.constant_initializer(0.0))
+                bias = tf.get_variable("bias" + id, [channels], initializer=tf.constant_initializer(0.0))
                 x = tf.nn.bias_add(x, bias)
             return x * update_mask
 
-    x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding=padding, name='zero-conv_' + id)
+    x = tf.nn.conv2d(input, filters, strides=[1, stride, stride, 1], padding=padding, name='zero-conv_' + id,
+                     dilations=(1, dilation, dilation, 1))
     if use_bias:
         bias = tf.get_variable("bias", [channels], initializer=tf.constant_initializer(0.0))
         x = tf.nn.bias_add(x, bias)
@@ -124,6 +126,7 @@ def t_conv(id, input, channels, size=3, stride=1, use_bias=True, padding="SAME",
         init = tf.truncated_normal_initializer(stddev=init_stddev)
     return tf.layers.conv2d_transpose(input, channels, kernel_size=size, strides=[stride, stride],
                                       padding=padding, kernel_initializer=init, name='tr_conv' + id, use_bias=use_bias)
+
 
 # Depricated! use conv with dilation > 1
 # def aconv(id, input, channels, size=3, rate=2, use_bias=True, padding="SAME", init_stddev=-1.0):
