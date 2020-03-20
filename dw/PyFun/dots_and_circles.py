@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 images = []
 
-size = np.array((500, 500))
+size = np.array((700, 700))
 canvas = np.zeros((size[0], size[1], 3), dtype=np.ubyte)
 CW = np.ones(3) * 255
 draw_scale = 4
@@ -17,9 +17,9 @@ def draw_circle_smooth(cx, cy, radius, thickness, ci, I):
     h, w = I.shape[:2]
     rs = radius ** 2
     for x in range(h):
-        dxs = (x - cx) ** 2
+        dxs = (x - cy) ** 2
         for y in range(w):
-            dys = (y - cy) ** 2
+            dys = (y - cx) ** 2
             if abs(dxs + dys - rs) < thickness:
                 I[x, y, ci] += 255
 
@@ -54,9 +54,9 @@ class Circle():
         self.big_canvas = np.zeros((size[0] * draw_scale, size[1] * draw_scale, 3), np.ubyte)
 
     def draw(self, I):
-        t = 30 - self.radius / 80
+        t = 100 - self.radius / 80
         if t > 0.0:
-            draw_circle_smooth(self.center[0], self.center[1],self.radius,200,0,I)
+            draw_circle_smooth(self.center[0], self.center[1],self.radius,3000,0,I)
             # self.big_canvas *= 0
             # cv2.circle(self.big_canvas,
             #            (int(self.center[0] * draw_scale), int(self.center[1] * draw_scale)),
@@ -84,8 +84,8 @@ class Point():
             self.step = 0
 
     def draw(self, I):
-        pass
-        # cv2.circle(I, (int(self.pos[0]), int(self.pos[1])), 5, (255, 255, 255))
+        #pass
+        cv2.circle(I, (int(self.pos[0]), int(self.pos[1])), 5, (255, 255, 255))
 
 
 points = [Point() for i in range(4)]
