@@ -2,6 +2,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 import dw.eval as dwe
+import dw.video as dwv
 
 
 def mova_demo():
@@ -49,6 +50,15 @@ def confusion_matrix_demo():
     #dwe.plot_confusions(CM)
 
 
+def gif_writer_demo():
+    gw = dwv.gif_writer([-3,3])
+    for i in range(10):
+        img = (np.random.randn(300,300,3))
+        gw.append(img)
+    gw.write('./gif_demo')
+
 if __name__ == '__main__':
     # mova_demo()
-    confusion_matrix_demo()
+    # confusion_matrix_demo()
+    # gif_writer_demo()
+    pass
