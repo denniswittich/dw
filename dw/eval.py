@@ -101,14 +101,16 @@ def plot_confusions(confusions):
 def print_metrics(confusions):
     metrics = get_confusion_metrics(confusions)
 
-    print('\nclass | pct of data | precision |   recall  |    f1',
-          '\n-----------------------------------------------------')
+    print('\nclass | pct of data | precision |   recall  |    f1     |    iou',
+          '\n-----------------------------------------------------------------')
 
     percentages = metrics["percentages"]
     precisions = metrics["precisions"]
     recall = metrics["recalls"]
     f1 = metrics["f1s"]
+    ious = metrics["ious"]
     mf1 = metrics["mf1"]
+    miou = metrics["miou"]
     oa = metrics["oa"]
 
     for i in range(len(percentages)):
@@ -116,9 +118,11 @@ def print_metrics(confusions):
         p = '{:.3%}'.format(precisions[i]).rjust(7)
         r = '{:.3%}'.format(recall[i]).rjust(7)
         f = '{:.3%}'.format(f1[i]).rjust(7)
-        print('   {:2d} |  {}  |  {}  |  {}  | {}\n'.format(i, pct, p, r, f))
+        u = '{:.3%}'.format(ious[i]).rjust(7)
+        print('   {:2d} |  {}  |  {}  |  {}  |  {}  |  {}\n'.format(i, pct, p, r, f, u))
 
     print('mean f1-score: {:.3%}'.format(mf1))
+    print('mean iou: {:.3%}'.format(miou))
     print('Overall accuracy: {:.3%}'.format(oa))
     print('Samples: {}'.format(np.sum(confusions)))
 
