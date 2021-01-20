@@ -108,6 +108,21 @@ def label_map2label_image_avg(image, label_map):
 
     return label_image
 
+@jit(nopython=True)
+def label_map2label_image(label_map):
+    h, w = label_map.shape
+    label_image = np.zeros((h, w, 3), dtype=np.float32)
+    num_labels = np.max(label_map) + 1
+
+    colors = get_saturated_colors(num_labels)
+
+    for x in range(h):
+        for y in range(w):
+            label = label_map[x, y]
+            label_image[x, y, :] = colors[label, :]
+
+    return label_image
+
 
 @jit(nopython=True)
 def get_saturated_color(hue):
@@ -144,22 +159,6 @@ def get_saturated_colors(num_colors):
             hue_i = 57 * i
             colors[i, :] = get_saturated_color(hue_i % 360) * (np.sin(i) / 4 + 0.75)
     return colors
-
-
-@jit(nopython=True)
-def label_map2label_image(label_map):
-    h, w = label_map.shape
-    label_image = np.zeros((h, w, 3), dtype=np.float32)
-    num_labels = np.max(label_map) + 1
-
-    colors = get_saturated_colors(num_labels)
-
-    for x in range(h):
-        for y in range(w):
-            label = label_map[x, y]
-            label_image[x, y, :] = colors[label, :]
-
-    return label_image
 
 
 @jit(nopython=True)
@@ -694,8 +693,8 @@ def rescale(I, factor, interpolate=True):
     if factor < 1.0 and interpolate:
         ext_image = gaussian_blur(ext_image, 0.5 / factor)
 
-    h_ = int(h * factor)
-    w_ = int(w * factor)
+    h_ = round(h * factor)
+    w_ = round(w * factor)
     d_ = d
 
     result = np.zeros((h_, w_, d_), dtype=np.float32)
@@ -709,6 +708,14 @@ def rescale(I, factor, interpolate=True):
             else:
                 result[x_, y_, :] = ext_image[1 + int(np.round(x)), 1 + int(np.round(y))]
     return result
+
+@jit(nopython=True)
+def rescale_to_shorter_edge(I, shorter_edge_length, interpolate=True):
+    # rescales an image such that the shorter edge will have length 'shorter_edge_length'
+    h, w, d = I.shape
+    factor = shorter_edge_length / min(h, w)
+
+    return rescale(I, factor, interpolate)
 
 
 # ===== OTHER

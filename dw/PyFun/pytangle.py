@@ -1,42 +1,33 @@
-import numpy as np
-import cv2
-import imageio
 from numba import jit
-from matplotlib import pyplot as plt
 from tkinter import *
-from tkinter import filedialog
-from tkinter import _setit
-import imageio
-from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image, ImageTk
-from scipy import signal
 import random
 
 images = []
 
 
 @jit(nopython=True)
-def draw_circle_smooth(cx, cy, r, grabbed, I):
+def draw_circle_smooth(cx, cy, r, grabbed, I, c):
     r2 = 2 * r
     rs = r ** 2
     for x in range(cx - r2, cx + r2 + 1):
         dxs = (x - cx) ** 2
         for y in range(cy - r2, cy + r2 + 1):
             sum = dxs + (y - cy) ** 2
-            #f = 0.0
+            # f = 0.0
             if sum <= 2 * rs:
-                #f = 1.0
-                #if sum <= 2 * rs:
+                # f = 1.0
+                # if sum <= 2 * rs:
                 f = 2 - sum / rs
                 if grabbed:
-                    I[x, y] += 230 * f
+                    I[x, y] += 0.5 * c * f
                 else:
-                    I[x, y] += 250 * f
+                    I[x, y] += c * f
 
 
 @jit(nopython=True)
-def draw_line_smooth(start_x, start_y, end_x, end_y, w, I):
+def draw_line_smooth(start_x, start_y, end_x, end_y, w, I, start_c, end_c):
     if start_x < end_x:
         x_low = start_x
         x_high = end_x
@@ -61,6 +52,8 @@ def draw_line_smooth(start_x, start_y, end_x, end_y, w, I):
         slope = by / bx
         for x in range(x_low, x_high):
             px = x - start_x
+            f = (x - x_low) / (x_high - x_low)
+            if end_x < start_x: f = 1 - f
             y_mid = (x - start_x) * slope + start_y
             for y in range(y_mid - w, y_mid + w + 1):
                 py = y - start_y
@@ -68,11 +61,13 @@ def draw_line_smooth(start_x, start_y, end_x, end_y, w, I):
 
                 if d < wn:
                     d = abs(px * by - py * bx) / ((bx * bx + by * by) ** 0.5)
-                    I[x, y] += 200.0 * 0.5 ** d
+                    I[x, y] += (start_c * (1 - f) + end_c * f) * 0.5 ** d
     else:
         slope = bx / by
         for y in range(y_low, y_high):
             py = y - start_y
+            f = (y - y_low) / (y_high - y_low)
+            if end_y < start_y: f = 1 - f
             x_mid = (y - start_y) * slope + start_x
             for x in range(x_mid - w, x_mid + w + 1):
                 px = x - start_x
@@ -80,7 +75,7 @@ def draw_line_smooth(start_x, start_y, end_x, end_y, w, I):
 
                 if d < wn:
                     d = abs(px * by - py * bx) / ((bx * bx + by * by) ** 0.5)
-                    I[x, y] += 200.0 * 0.5 ** d
+                    I[x, y] += (start_c * (1 - f) + end_c * f) * 0.5 ** d
 
 
 class Line():
@@ -88,22 +83,27 @@ class Line():
     def __init__(self, start, end):
         self.start = start
         self.end = end
-        self.w = 5
+        self.w = 3
 
     def draw(self, I):
-        draw_line_smooth(self.start.pos[0], self.start.pos[1], self.end.pos[0], self.end.pos[1], self.w, I)
+        draw_line_smooth(self.start.pos[0], self.start.pos[1], self.end.pos[0], self.end.pos[1], self.w, I,
+                         self.start.c, self.end.c)
 
 
 class Nob():
     grabbed = False
 
     def __init__(self, width):
+        self.width = width
         self.pos = np.random.randint(0 + 16, width - 16, size=(2,)).astype(np.float32)
         self.r = 12.0
         self.rs = self.r ** 2
+        self.c = np.random.rand(3).astype(np.float32) * 255
+        while self.c.sum() < 500:
+            self.c = np.random.rand(3).astype(np.float32) * 255
 
     def draw(self, I):
-        draw_circle_smooth(self.pos[0], self.pos[1], self.r / 2, self.grabbed, I)
+        draw_circle_smooth(self.pos[0], self.pos[1], self.r / 2, self.grabbed, I, self.c)
 
     def grab(self, x, y):
         dx = abs(x - self.pos[0])
@@ -118,6 +118,7 @@ class Nob():
 
     def shift(self, delta):
         self.pos += delta
+        np.clip(self.pos, self.r, self.width - self.r, self.pos)
 
     def ungrab(self):
         self.grabbed = False
@@ -131,12 +132,13 @@ class mainWindow():
 
     root = None  # --------------------------------------------------------------- tkinter gui root element
     width = 800  # --------------------------------------------------------------- side length of thumbnail images
-    canvas = np.random.randint(0, 255, (width, width, 3)).astype(np.float)  # ------ canvas
+    canvas = np.random.randint(0, 255, (width, width, 3)).astype(np.float32)  # ------ canvas
     nobs = []  # ------------------------------------------------------------------ Nots
     lines = []  # ----------------------------------------------------------------- Edges
 
     l_prev = np.zeros((2,), dtype=np.int)
     grabbed = []
+    second = False
 
     def __init__(self):
         # ============== GUI ROOT ELEMENT ================
@@ -173,7 +175,7 @@ class mainWindow():
 
         self.root.mainloop()
 
-    def initgame(self, N=64):
+    def initgame(self, N=144):
 
         n = int(N ** 0.5)
         nobgrid = [[Nob(self.width) for i in range(n)] for j in range(n)]
@@ -193,11 +195,11 @@ class mainWindow():
                     self.lines.append(Line(nobgrid[x][y], nobgrid[x][y - 1]))
                 # if y < n - 1 and random.random() < p:
                 #     self.lines.append(Line(nobgrid[x][y], nobgrid[x][y + 1]))
-                if x > 0 and y > 0  and random.random() < p:
+                if x > 0 and y > 0 and random.random() < p:
                     if random.random() > 0.5:
                         self.lines.append(Line(nobgrid[x][y], nobgrid[x - 1][y - 1]))
                     else:
-                        self.lines.append(Line(nobgrid[x-1][y], nobgrid[x][y - 1]))
+                        self.lines.append(Line(nobgrid[x - 1][y], nobgrid[x][y - 1]))
 
         # add border skipcons
 
@@ -222,17 +224,16 @@ class mainWindow():
         y_min = min(ypos)
         y_max = max(ypos)
 
-        offset = np.array((x_min,y_min))
+        offset = np.array((x_min, y_min))
 
-        scale = np.array((0.8*self.width/(x_max-x_min),0.8*self.width/(y_max-y_min)))
+        scale = np.array((0.9 * self.width / (x_max - x_min), 0.9 * self.width / (y_max - y_min)))
 
         for nob in self.nobs:
             nob.pos -= offset
-            nob.pos *=scale
-            nob.pos += 0.1*self.width
+            nob.pos *= scale
+            nob.pos += 0.05 * self.width
 
         self.draw()
-
 
     def l_motion(self, pos):
 
