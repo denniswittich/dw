@@ -1,5 +1,6 @@
 import imageio
 import numpy as np
+import cv2
 
 class gif_writer:
     def __init__(self, range = [0,255]):
@@ -28,4 +29,19 @@ class gif_writer:
         imageio.mimwrite(path, self.imgs)
         print('gif written to ', path)
 
-
+def gif2mp4(in_path, out_path, frame_rate=25):
+    gif = imageio.get_reader(in_path)
+    for i, frame in enumerate(gif):
+        if i == 0:
+            hw = frame.shape[:2]
+            out = cv2.VideoWriter(out_path,0x7634706d , frame_rate, hw)
+            if frame.ndim == 3:
+                d = frame.shape[2]
+            else:
+                d = 1
+        if d >= 3:
+            im = frame[:, :, :3][:, :, ::-1]
+        else:
+            im = np.dstack((frame,frame,frame))
+        out.write(im)
+    out.release()

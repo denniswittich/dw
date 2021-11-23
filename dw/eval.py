@@ -31,13 +31,26 @@ def get_confusion_metrics(confusion_matrix):
     tp = np.diag(confusion_matrix)
     tp_fn = np.sum(confusion_matrix, axis=0)
     tp_fp = np.sum(confusion_matrix, axis=1)
+
+    has_rp = tp_fn > 0
+    has_pp = tp_fp > 0
+
+    tp_fn[has_rp] = 1
+    tp_fp[has_pp] = 1
+
     percentages = tp_fn / np.sum(confusion_matrix)
     precisions = tp / tp_fp
     recalls = tp / tp_fn
+
     f1s = 2 * (precisions * recalls) / (precisions + recalls)
     ious = tp / (tp_fn + tp_fp - tp)
-    f1s[np.isnan(f1s)] = 0.0
+
+    precisions[has_pp] *= 0.0
+    recalls[has_rp] *= 0.0
+
     f1s[percentages == 0.0] = np.nan
+    ious[percentages == 0.0] = np.nan
+
     mf1 = np.nanmean(f1s)
     miou = np.nanmean(ious)
     oa = np.trace(confusion_matrix) / np.sum(confusion_matrix)
