@@ -7,17 +7,17 @@ class TestImageMethods(unittest.TestCase):
 
     def test_sub_pixel(self):
         I = np.arange(0,9,dtype=np.float32).reshape((3,3,1))
-        sp_1 = dwi.sub_pixel(I,0.0,0.0)
-        sp_2 = dwi.sub_pixel(I,0.5,0.5)
+        sp_1 = dwi.get_sub_pixel(I, 0.0, 0.0)
+        sp_2 = dwi.get_sub_pixel(I, 0.5, 0.5)
         self.assertEqual(sp_1, 0.0)
         self.assertEqual(sp_2, 2.0)
         with self.assertRaises(AssertionError):
-            dwi.sub_pixel(I, 1.0, -1.0)
-        sp_3 = dwi.sub_pixel(I, 1.0, -1.0, allow_oob=True)
+            dwi.get_sub_pixel(I, 1.0, -1.0)
+        sp_3 = dwi.get_sub_pixel(I, 1.0, -1.0, allow_oob=True)
         self.assertEqual(sp_3, 3.0)
         with self.assertRaises(AssertionError):
-            dwi.sub_pixel(I, 0.0, 4.0)
-        sp_4 = dwi.sub_pixel(I, 0.0, 4.0, allow_oob=True)
+            dwi.get_sub_pixel(I, 0.0, 4.0)
+        sp_4 = dwi.get_sub_pixel(I, 0.0, 4.0, allow_oob=True)
         self.assertEqual(sp_4, 2.0)
 
     def test_isupper(self):

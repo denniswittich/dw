@@ -1,5 +1,5 @@
 import numpy as np, imageio
-from numba import jit
+from numba import *
 
 
 # ===== IO
@@ -643,35 +643,31 @@ def median_filter(I, n):
 
 # ===== INTERPOLATION
 
-@jit(nopython=True)
-def sub_pixel(I, x, y, allow_oob=False):
-    assert I.ndim == 3, 'Image has to be a 3D-array!'
+@jit(float32[:](float32[:, :, :], float32, float32), nopython=True, cache=True)
+def get_sub_pixel_2d(I, x, y, check_OOB=True, OOB_value=None):
+    """Calculates the value of an arbitrary position in an image using bi-linear interpolation.
+
+    :param I: Float32 array representing the image in HWC convention
+    :param x: Sub-pixel x-coordinate
+    :param y: Sub-pixel y-coordinate
+    :param check_OOB: Whether to check for out-of-boundary
+    :param OOB_value: Value to return in case of out-of-boundary
+    :return: Interpolated value at sub-pixel coordinate or OOB-value
+    """
+
     h, w = I.shape[:2]
 
-    if not allow_oob:
-        assert x >= 0, 'x must not be negative'
-        assert x < h - 1, 'x exceeds image height'
-        assert y >= 0, 'y must not be negative'
-        assert y < w - 1, 'y exceeds image width'
-    else:
-        x = min(max(x, 0.0), h - 1.0)
-        y = min(max(y, 0.0), w - 1.0)
+    if check_OOB:
+        if (x < 0) or (x >= h - 1) or (y < 0) or (y >= w - 1):
+            return OOB_value
 
     x_low = int(x)
-    if x % 1.0 == 0:
-        x_high = x_low
-    else:
-        x_high = x_low + 1
-
+    x_high = x_low + 1
     y_low = int(y)
-    if x % 1.0 == 0:
-        y_high = y_low
-    else:
-        y_high = y_low + 1
+    y_high = y_low + 1
 
     s = x - x_low
     t = y - y_low
-
     s_ = 1 - s
     t_ = 1 - t
 
@@ -704,7 +700,7 @@ def rescale(I, factor, interpolate=True):
             x = x_ / factor
             y = y_ / factor
             if interpolate:
-                result[x_, y_, :] = sub_pixel(ext_image, 1 + x, 1 + y)
+                result[x_, y_, :] = get_sub_pixel_2d(ext_image, 1 + x, 1 + y)
             else:
                 result[x_, y_, :] = ext_image[1 + int(np.round(x)), 1 + int(np.round(y))]
     return result
@@ -744,12 +740,46 @@ def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
             y = cy + dy
 
             if interpolate:
-                result[x_, y_, :] = sub_pixel(I, x, y)
+                result[x_, y_, :] = get_sub_pixel_2d(I, x, y)
             else:
                 xr = min(max(int(np.round(x)), 0), h - 1)
                 yr = min(max(int(np.round(y)), 0), w - 1)
                 result[x_, y_, :] = I[xr, yr]
 
+    return result
+
+
+@jit(f4[:, :, :](f4[:, :, :], f4, f4, f4, i8, i8, b1, b1, b1), nopython=True, cache=True)
+def extract_patch(I, rad, cx, cy, patch_height, patch_width, interpolate, flipx, flipy, out=None): # TODO OUT
+    h, w, d = I.shape
+    result = np.zeros((patch_height, patch_width, d), dtype=np.float32)
+
+    sr = np.sin(rad)
+    cr = np.cos(rad)
+
+    for x_ in range(patch_height):
+        rx = x_ - patch_height / 2
+        crrx = cr * rx
+        negsrrx = -1 * sr * rx
+        for y_ in range(patch_width):
+            ry = y_ - patch_width / 2
+            dx = crrx + sr * ry
+            dy = negsrrx + cr * ry
+            if flipx:
+                x = cx - dx
+            else:
+                x = cx + dx
+            if flipy:
+                y = cy - dy
+            else:
+                y = cy + dy
+
+            if interpolate:
+                result[x_, y_, :] = get_sub_pixel_2d(I, x, y)
+            else:
+                xr = min(max(int(np.round(x)), 0), h - 1)
+                yr = min(max(int(np.round(y)), 0), w - 1)
+                result[x_, y_, :] = I[xr, yr]
     return result
 
 
