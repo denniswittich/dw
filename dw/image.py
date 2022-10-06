@@ -700,7 +700,7 @@ def rescale(I, factor, interpolate=True):
             x = x_ / factor
             y = y_ / factor
             if interpolate:
-                result[x_, y_, :] = get_sub_pixel_2d(ext_image, 1 + x, 1 + y)
+                result[x_, y_, :] = get_sub_pixel_2d(ext_image, 1 + x, 1 + y,check_OOB=True,OOB_value=0.0)
             else:
                 result[x_, y_, :] = ext_image[1 + int(np.round(x)), 1 + int(np.round(y))]
     return result
