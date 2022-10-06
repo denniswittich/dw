@@ -754,7 +754,7 @@ def extract_patch(I, rad, cx, cy, patchsize, interpolate, flipx, flipy):
 
 
 @jit(f4[:, :, :](f4[:, :, :], f4, f4, f4, i8, i8, b1, b1, b1), nopython=True, cache=True)
-def extract_patch(I, rad, cx, cy, patch_height, patch_width, interpolate, flipx, flipy, out=None): # TODO OUT
+def extract_patch(I, rad, cx, cy, patch_height, patch_width, interpolate, flipx, flipy): # TODO OUT
     h, w, d = I.shape
     result = np.zeros((patch_height, patch_width, d), dtype=np.float32)
 
