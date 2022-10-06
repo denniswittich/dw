@@ -643,7 +643,7 @@ def median_filter(I, n):
 
 # ===== INTERPOLATION
 
-@jit(float32[:](float32[:, :, :], float32, float32), nopython=True, cache=True)
+@jit(nopython=True, cache=True)
 def get_sub_pixel_2d(I, x, y, check_OOB=True, OOB_value=None):
     """Calculates the value of an arbitrary position in an image using bi-linear interpolation.
 
@@ -659,7 +659,10 @@ def get_sub_pixel_2d(I, x, y, check_OOB=True, OOB_value=None):
 
     if check_OOB:
         if (x < 0) or (x >= h - 1) or (y < 0) or (y >= w - 1):
-            return OOB_value
+            if OOB_value is None:
+                return np.zeros_like(I[0,0])
+            else:
+                return OOB_value
 
     x_low = int(x)
     x_high = x_low + 1
@@ -677,6 +680,7 @@ def get_sub_pixel_2d(I, x, y, check_OOB=True, OOB_value=None):
     v11 = I[x_high, y_high, :]
 
     return (s_ * t_ * v00 + s * t_ * v10 + s_ * t * v01 + s * t * v11).astype(np.float32)
+
 
 
 @jit(nopython=True)
@@ -700,7 +704,7 @@ def rescale(I, factor, interpolate=True):
             x = x_ / factor
             y = y_ / factor
             if interpolate:
-                result[x_, y_, :] = get_sub_pixel_2d(ext_image, 1 + x, 1 + y,check_OOB=True,OOB_value=0.0)
+                result[x_, y_, :] = get_sub_pixel_2d(ext_image, 1 + x, 1 + y)
             else:
                 result[x_, y_, :] = ext_image[1 + int(np.round(x)), 1 + int(np.round(y))]
     return result
